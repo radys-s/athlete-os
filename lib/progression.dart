@@ -25,8 +25,14 @@ ProgressionResult evaluateProgression(
       0,
     );
   }
-  if (performed.length != targets.length ||
-      performed.any((set) => set['done'] != true)) {
+  if (performed.length != targets.length) {
+    return ProgressionResult(
+      false,
+      'Počet pracovních sérií se liší od plánu. Automatický návrh váhy se nepoužije.',
+      currentWeight,
+    );
+  }
+  if (performed.any((set) => set['done'] != true)) {
     return ProgressionResult(
       false,
       'Nejsou dokončené všechny série.',
@@ -76,7 +82,7 @@ double completedVolume(List<Map<String, dynamic>> sessions) {
   for (final session in sessions) {
     for (final exercise in asMaps(session['exercises'])) {
       for (final set in asMaps(exercise['sets'])) {
-        if (set['done'] == true) {
+        if (set['done'] == true && set['kind'] != 'warmup') {
           total +=
               (set['reps'] as num).toDouble() *
               (set['weight'] as num).toDouble();

@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import '../app_controller.dart';
 import '../models.dart';
 import 'common.dart';
+import 'exercise_picker.dart';
 
 class WorkoutPage extends StatefulWidget {
   final AppController app;
@@ -64,7 +65,9 @@ class _WorkoutPageState extends State<WorkoutPage> {
   WorkoutExercise? _previous(String exerciseId) => widget.app.sessions
       .expand((s) => s.exercises)
       .where(
-        (e) => e.exerciseId == exerciseId && e.sets.any((s) => s.done),
+        (e) =>
+            e.exerciseId == exerciseId &&
+            e.sets.any((s) => s.done && s.kind == 'work'),
       )
       .firstOrNull;
 
@@ -82,11 +85,18 @@ class _WorkoutPageState extends State<WorkoutPage> {
         toast(context, 'Oprav opakování, váhu nebo RIR u dokončené série.');
         return;
       }
-      if (done.isEmpty) {
-        toast(context, 'Zapiš alespoň jednu dokončenou sérii, nebo trénink zruš.');
+      if (!workout.exercises.any(
+        (exercise) => exercise.workSets.any((set) => set.done),
+      )) {
+        toast(
+          context,
+          'Zapiš alespoň jednu pracovní sérii, nebo trénink zruš.',
+        );
         return;
       }
-      final incomplete = workout.exercises.expand((e) => e.sets).any((s) => !s.done);
+      final incomplete = workout.exercises
+          .expand((e) => e.workSets)
+          .any((s) => !s.done);
       if (incomplete &&
           !await confirmDialog(
             context,
@@ -116,6 +126,23 @@ class _WorkoutPageState extends State<WorkoutPage> {
     }
   }
 
+  Future<void> _addExercise() async {
+    final id = await Navigator.push<String>(
+      context,
+      MaterialPageRoute(builder: (_) => ExercisePicker(app: widget.app)),
+    );
+    if (id == null || !mounted) return;
+    try {
+      await widget.app.addExerciseToActive(id);
+    } on StateError catch (error) {
+      if (mounted) toast(context, error.message);
+    } catch (_) {
+      if (mounted) {
+        toast(context, 'Cvik zatím není uložený. Zkus uložení znovu.');
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final app = widget.app;
@@ -127,6 +154,17 @@ class _WorkoutPageState extends State<WorkoutPage> {
       children: [
         Text(w.planName, style: Theme.of(context).textTheme.headlineSmall),
         Text('Začátek: ${formatTime(w.startedAt)}'),
+        TextFormField(
+          key: ValueKey('note-${w.id}'),
+          initialValue: w.note,
+          maxLines: 2,
+          maxLength: 500,
+          decoration: const InputDecoration(labelText: 'Poznámka k tréninku'),
+          onChanged: (value) {
+            w.note = value;
+            app.touchActive();
+          },
+        ),
         const SizedBox(height: 12),
         Card(
           child: Padding(
@@ -137,7 +175,9 @@ class _WorkoutPageState extends State<WorkoutPage> {
                 const SizedBox(width: 12),
                 Expanded(
                   child: Text(
-                    remaining > 0 ? 'Odpočinek ${remaining}s' : 'Čas na další sérii',
+                    remaining > 0
+                        ? 'Odpočinek ${remaining}s'
+                        : 'Čas na další sérii',
                   ),
                 ),
                 IconButton(
@@ -162,13 +202,19 @@ class _WorkoutPageState extends State<WorkoutPage> {
         ),
         for (final exercise in w.exercises)
           _ExerciseCard(
-            key: ValueKey('${w.id}-${exercise.planExerciseId ?? exercise.exerciseId}'),
+            key: ValueKey(
+              '${w.id}-${exercise.planExerciseId ?? exercise.exerciseId}',
+            ),
             app: app,
-            workoutId: w.id,
             exercise: exercise,
             previous: _previous(exercise.exerciseId),
             onSetDone: startRest,
           ),
+        OutlinedButton.icon(
+          onPressed: finishing ? null : _addExercise,
+          icon: const Icon(Icons.add),
+          label: const Text('Přidat cvik do tréninku'),
+        ),
         const SizedBox(height: 12),
         FilledButton.icon(
           onPressed: finishing ? null : _finish,
@@ -187,14 +233,12 @@ class _WorkoutPageState extends State<WorkoutPage> {
 
 class _ExerciseCard extends StatefulWidget {
   final AppController app;
-  final String workoutId;
   final WorkoutExercise exercise;
   final WorkoutExercise? previous;
   final VoidCallback onSetDone;
   const _ExerciseCard({
     super.key,
     required this.app,
-    required this.workoutId,
     required this.exercise,
     required this.previous,
     required this.onSetDone,
@@ -224,12 +268,12 @@ class _ExerciseCardState extends State<_ExerciseCard> {
             Text(
               previous == null
                   ? 'První záznam'
-                  : 'Minule: ${previous.sets.where((s) => s.done).map((s) => '${fmtNum(s.weight)} kg × ${s.reps}').join(' · ')}',
+                  : 'Minule: ${previous.workSets.where((s) => s.done).map((s) => '${fmtNum(s.weight)} kg × ${s.reps}').join(' · ')}',
             ),
             const SizedBox(height: 8),
             for (var j = 0; j < exercise.sets.length; j++)
               _SetRow(
-                key: ValueKey('${widget.workoutId}-${exercise.exerciseId}-$j'),
+                key: ObjectKey(exercise.sets[j]),
                 index: j,
                 set: exercise.sets[j],
                 showRir: app.mode != 'Simple',
@@ -239,7 +283,32 @@ class _ExerciseCardState extends State<_ExerciseCard> {
                   app.touchActive();
                   if (done) widget.onSetDone();
                 },
+                onRemove:
+                    exercise.sets[j].kind == 'work' &&
+                        exercise.workSets.length <= 1
+                    ? null
+                    : () {
+                        setState(() => exercise.sets.removeAt(j));
+                        app.touchActive();
+                      },
               ),
+            TextButton.icon(
+              onPressed: () {
+                final lastWork = exercise.workSets.lastOrNull;
+                setState(
+                  () => exercise.sets.add(
+                    WorkoutSet(
+                      target: lastWork?.target ?? 10,
+                      reps: lastWork?.target ?? 10,
+                      weight: lastWork?.weight ?? 0,
+                    ),
+                  ),
+                );
+                app.touchActive();
+              },
+              icon: const Icon(Icons.add),
+              label: const Text('Přidat pracovní sérii'),
+            ),
           ],
         ),
       ),
@@ -253,6 +322,7 @@ class _SetRow extends StatelessWidget {
   final bool showRir;
   final VoidCallback onChanged;
   final ValueChanged<bool> onDone;
+  final VoidCallback? onRemove;
   const _SetRow({
     super.key,
     required this.index,
@@ -260,55 +330,85 @@ class _SetRow extends StatelessWidget {
     required this.showRir,
     required this.onChanged,
     required this.onDone,
+    required this.onRemove,
   });
 
   @override
-  Widget build(BuildContext context) => Row(
-    children: [
-      SizedBox(width: 52, child: Text('${index + 1}. / ${set.target}')),
-      Expanded(
-        child: TextFormField(
-          initialValue: fmtNum(set.weight),
-          keyboardType: const TextInputType.numberWithOptions(decimal: true),
-          decoration: const InputDecoration(labelText: 'kg'),
-          onChanged: (v) {
-            set.weight = parseNum(v) ?? 0;
-            onChanged();
-          },
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.symmetric(vertical: 4),
+    child: Column(
+      children: [
+        Row(
+          children: [
+            SizedBox(
+              width: 52,
+              child: Text(
+                set.kind == 'warmup'
+                    ? 'R ${index + 1}'
+                    : '${index + 1}. / ${set.target}',
+              ),
+            ),
+            Expanded(
+              child: TextFormField(
+                initialValue: fmtNum(set.weight),
+                keyboardType: const TextInputType.numberWithOptions(
+                  decimal: true,
+                ),
+                decoration: const InputDecoration(labelText: 'kg'),
+                onChanged: (v) {
+                  set.weight = parseNum(v) ?? 0;
+                  onChanged();
+                },
+              ),
+            ),
+            const SizedBox(width: 8),
+            SizedBox(
+              width: 68,
+              child: TextFormField(
+                initialValue: '${set.reps}',
+                keyboardType: TextInputType.number,
+                decoration: const InputDecoration(labelText: 'reps'),
+                onChanged: (v) {
+                  set.reps = int.tryParse(v) ?? 0;
+                  onChanged();
+                },
+              ),
+            ),
+            Semantics(
+              label: 'Dokončeno série ${index + 1}',
+              child: Checkbox(
+                value: set.done,
+                onChanged: (value) => onDone(value == true),
+              ),
+            ),
+          ],
         ),
-      ),
-      const SizedBox(width: 8),
-      SizedBox(
-        width: 60,
-        child: TextFormField(
-          initialValue: '${set.reps}',
-          keyboardType: TextInputType.number,
-          decoration: const InputDecoration(labelText: 'reps'),
-          onChanged: (v) {
-            set.reps = int.tryParse(v) ?? 0;
-            onChanged();
-          },
-        ),
-      ),
-      if (showRir) ...[
-        const SizedBox(width: 8),
-        SizedBox(
-          width: 48,
-          child: TextFormField(
-            initialValue: set.rir?.toString() ?? '',
-            keyboardType: TextInputType.number,
-            decoration: const InputDecoration(labelText: 'RIR'),
-            onChanged: (v) {
-              set.rir = int.tryParse(v);
-              onChanged();
-            },
-          ),
+        Row(
+          children: [
+            const SizedBox(width: 52),
+            if (showRir)
+              SizedBox(
+                width: 64,
+                child: TextFormField(
+                  initialValue: set.rir?.toString() ?? '',
+                  keyboardType: TextInputType.number,
+                  decoration: const InputDecoration(labelText: 'RIR'),
+                  onChanged: (v) {
+                    set.rir = int.tryParse(v);
+                    onChanged();
+                  },
+                ),
+              ),
+            const Spacer(),
+            IconButton(
+              tooltip: 'Odebrat sérii',
+              onPressed: onRemove,
+              icon: const Icon(Icons.close, size: 18),
+              visualDensity: VisualDensity.compact,
+            ),
+          ],
         ),
       ],
-      Checkbox(
-        value: set.done,
-        onChanged: (value) => onDone(value == true),
-      ),
-    ],
+    ),
   );
 }

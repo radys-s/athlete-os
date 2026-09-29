@@ -58,6 +58,7 @@ class PlanExercise {
   String ruleType; // fixed | repRange
   int rangeMin;
   int rangeMax;
+  int warmupSets;
   final Map<String, dynamic> extra;
 
   PlanExercise({
@@ -69,6 +70,7 @@ class PlanExercise {
     this.ruleType = 'fixed',
     this.rangeMin = 8,
     this.rangeMax = 12,
+    this.warmupSets = 0,
     Map<String, dynamic>? extra,
   }) : targets = targets ?? [12, 10, 8],
        extra = extra ?? {};
@@ -82,6 +84,7 @@ class PlanExercise {
     'ruleType',
     'rangeMin',
     'rangeMax',
+    'warmupSets',
   };
 
   factory PlanExercise.fromJson(Map<String, dynamic> json) {
@@ -99,6 +102,7 @@ class PlanExercise {
       ruleType: json['ruleType'] as String? ?? 'fixed',
       rangeMin: _i(json['rangeMin'], 8),
       rangeMax: _i(json['rangeMax'], 12),
+      warmupSets: _i(json['warmupSets']),
       extra: _extra(json, _known),
     );
   }
@@ -113,6 +117,7 @@ class PlanExercise {
     'ruleType': ruleType,
     'rangeMin': rangeMin,
     'rangeMax': rangeMax,
+    'warmupSets': warmupSets,
   };
 
   PlanExercise copy() => PlanExercise.fromJson(deepCopy(toJson()));
@@ -127,6 +132,9 @@ class PlanExercise {
       return 'Cíl opakování musí být alespoň 1.';
     }
     if (step <= 0) return 'Krok váhy musí být větší než 0.';
+    if (warmupSets < 0 || warmupSets > 5) {
+      return 'Počet rozcvičovacích sérií musí být 0 až 5.';
+    }
     if (weight < 0) return 'Váha nemůže být záporná.';
     if (ruleType == 'repRange' && (rangeMin < 1 || rangeMax < rangeMin)) {
       return 'Rozsah opakování je neplatný.';
@@ -190,6 +198,7 @@ class WorkoutSet {
   double weight;
   int? rir;
   bool done;
+  String kind; // work | warmup
   final Map<String, dynamic> extra;
 
   WorkoutSet({
@@ -198,10 +207,11 @@ class WorkoutSet {
     required this.weight,
     this.rir,
     this.done = false,
+    this.kind = 'work',
     Map<String, dynamic>? extra,
   }) : extra = extra ?? {};
 
-  static const _known = {'target', 'reps', 'weight', 'rir', 'done'};
+  static const _known = {'target', 'reps', 'weight', 'rir', 'done', 'kind'};
 
   factory WorkoutSet.fromJson(Map<String, dynamic> json) => WorkoutSet(
     target: _i(json['target'], _i(json['reps'])),
@@ -209,6 +219,7 @@ class WorkoutSet {
     weight: _d(json['weight']),
     rir: json['rir'] is num ? (json['rir'] as num).toInt() : null,
     done: json['done'] == true,
+    kind: json['kind'] == 'warmup' ? 'warmup' : 'work',
     extra: _extra(json, _known),
   );
 
@@ -219,6 +230,7 @@ class WorkoutSet {
     'weight': weight,
     'rir': rir,
     'done': done,
+    'kind': kind,
   };
 }
 
@@ -279,8 +291,10 @@ class WorkoutExercise {
   };
 
   double get bestDoneWeight => sets
-      .where((s) => s.done)
+      .where((s) => s.done && s.kind == 'work')
       .fold<double>(0, (best, s) => s.weight > best ? s.weight : best);
+
+  List<WorkoutSet> get workSets => sets.where((s) => s.kind == 'work').toList();
 }
 
 class Proposal {
@@ -375,6 +389,7 @@ class Workout {
   DateTime? finishedAt;
   DateTime? restEnd;
   int restSeconds;
+  String note;
   List<WorkoutExercise> exercises;
   List<Proposal> proposals;
   final Map<String, dynamic> extra;
@@ -387,6 +402,7 @@ class Workout {
     this.finishedAt,
     this.restEnd,
     this.restSeconds = 90,
+    this.note = '',
     required this.exercises,
     List<Proposal>? proposals,
     Map<String, dynamic>? extra,
@@ -401,6 +417,7 @@ class Workout {
     'finishedAt',
     'restEnd',
     'restSeconds',
+    'note',
     'exercises',
     'proposals',
   };
@@ -415,6 +432,7 @@ class Workout {
     finishedAt: DateTime.tryParse(json['finishedAt'] as String? ?? ''),
     restEnd: DateTime.tryParse(json['restEnd'] as String? ?? ''),
     restSeconds: _i(json['restSeconds'], 90),
+    note: json['note'] as String? ?? '',
     exercises: asMaps(json['exercises']).map(WorkoutExercise.fromJson).toList(),
     proposals: asMaps(json['proposals']).map(Proposal.fromJson).toList(),
     extra: _extra(json, _known),
@@ -429,6 +447,7 @@ class Workout {
     if (finishedAt != null) 'finishedAt': finishedAt!.toUtc().toIso8601String(),
     if (restEnd != null) 'restEnd': restEnd!.toUtc().toIso8601String(),
     'restSeconds': restSeconds,
+    'note': note,
     'exercises': exercises.map((e) => e.toJson()).toList(),
     'proposals': proposals.map((p) => p.toJson()).toList(),
   };

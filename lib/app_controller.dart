@@ -31,8 +31,12 @@ class AppController extends ChangeNotifier with WidgetsBindingObserver {
   Timer? _saveTimer;
   bool _syncing = false;
   bool _syncRequested = false;
+  Future<void>? _syncFuture;
   bool _disposed = false;
   bool _flushing = false;
+  int _pendingWrites = 0;
+  Future<void> _writeTail = Future<void>.value();
+  String? saveError;
 
   Future<void> initialize() async {
     await store.open();
@@ -55,9 +59,10 @@ class AppController extends ChangeNotifier with WidgetsBindingObserver {
   }
 
   Future<void> reload() async {
-    plans = (await store.all(
-      'plan',
-    )).map(Plan.fromJson).where((plan) => !plan.archived).toList();
+    plans = (await store.all('plan'))
+        .map(Plan.fromJson)
+        .where((plan) => !plan.archived)
+        .toList();
     sessions = (await store.all('session')).map(Workout.fromJson).toList()
       ..sort(
         (a, b) => (b.finishedAt ?? b.startedAt).compareTo(
@@ -67,7 +72,7 @@ class AppController extends ChangeNotifier with WidgetsBindingObserver {
     customExercises = await store.all('exercise');
     final activeRows = await store.all('active');
     // Never replace the in-memory workout while edits are waiting to be saved.
-    if (_saveTimer == null && !_flushing) {
+    if (_saveTimer == null && !_flushing && saveError == null) {
       active = activeRows.isEmpty ? null : Workout.fromJson(activeRows.first);
     }
     final settings = await store.get('settings');
@@ -81,16 +86,23 @@ class AppController extends ChangeNotifier with WidgetsBindingObserver {
     if (!_disposed) super.notifyListeners();
   }
 
-  Future<void> sync() async {
-    if (_disposed || locked || pendingImport) return;
+  Future<void> sync() {
+    if (_disposed || locked || pendingImport) return Future<void>.value();
     if (_syncing) {
       _syncRequested = true;
-      return;
+      return _syncFuture ?? Future<void>.value();
     }
     _syncing = true;
+    final result = _runSync();
+    _syncFuture = result;
+    return result;
+  }
+
+  Future<void> _runSync() async {
     do {
       _syncRequested = false;
       try {
+        if (activeSaving || _flushing || saveError != null) await flushActive();
         await cloud.sync();
         syncError = null;
         await reload();
@@ -106,6 +118,7 @@ class AppController extends ChangeNotifier with WidgetsBindingObserver {
       }
     } while (_syncRequested);
     _syncing = false;
+    _syncFuture = null;
     notifyListeners();
   }
 
@@ -157,11 +170,28 @@ class AppController extends ChangeNotifier with WidgetsBindingObserver {
     unawaited(sync());
   }
 
-  Future<void> saveExercise(String name, String muscle) async {
+  Future<String> exportBackup() async {
+    if (active != null) await flushActive();
+    return store.exportBackup();
+  }
+
+  Future<int> importBackup(String source) async {
+    final count = await store.importBackup(source);
+    await reload();
+    await _refreshAccountState();
+    return count;
+  }
+
+  Future<void> saveExercise(
+    String name,
+    String muscle,
+    String equipment,
+  ) async {
     await store.put('exercise', {
       'id': newId(),
       'name': name.trim(),
       'muscle': muscle,
+      'equipment': equipment,
     });
     await reload();
     unawaited(sync());
@@ -198,6 +228,43 @@ class AppController extends ChangeNotifier with WidgetsBindingObserver {
   WorkoutSet _newSet(int target, double weight) =>
       WorkoutSet(target: target, reps: target, weight: weight);
 
+  Future<void> startQuickWorkout() async {
+    if (active != null) throw StateError('Nejdřív dokonči rozepsaný trénink.');
+    final workout = Workout(
+      id: newId(),
+      planName: 'Volný trénink',
+      startedAt: DateTime.now().toUtc(),
+      exercises: [],
+    );
+    await store.put('active', workout.toJson());
+    active = workout;
+    notifyListeners();
+  }
+
+  Future<void> addExerciseToActive(String exerciseId) async {
+    final workout = active;
+    if (workout == null) throw StateError('Žádný rozepsaný trénink.');
+    if (workout.exercises.any((item) => item.exerciseId == exerciseId)) {
+      throw StateError('Cvik už je v tomto tréninku.');
+    }
+    final previous = sessions
+        .expand((session) => session.exercises)
+        .where((item) => item.exerciseId == exerciseId)
+        .firstOrNull;
+    final lastWork = previous?.workSets.where((set) => set.done).firstOrNull;
+    workout.exercises.add(
+      WorkoutExercise(
+        exerciseId: exerciseId,
+        sets: List.generate(
+          3,
+          (_) => _newSet(lastWork?.target ?? 10, lastWork?.weight ?? 0),
+        ),
+      ),
+    );
+    notifyListeners();
+    await flushActive();
+  }
+
   Future<void> startPlan(Plan plan) async {
     if (active != null) throw StateError('Nejdřív dokonči rozepsaný trénink.');
     final exercises = plan.exercises.map((item) {
@@ -208,17 +275,30 @@ class AppController extends ChangeNotifier with WidgetsBindingObserver {
         exerciseId: item.exerciseId,
         planExerciseId: item.id,
         rule: item.copy(),
-        sets: targets.map((t) => _newSet(t, item.weight)).toList(),
+        sets: [
+          for (var i = 0; i < item.warmupSets; i++)
+            WorkoutSet(
+              target: 5,
+              reps: 5,
+              weight: item.weight > 0
+                  ? (item.weight * (i + 1) / (item.warmupSets + 1))
+                        .roundToDouble()
+                  : 0,
+              kind: 'warmup',
+            ),
+          ...targets.map((t) => _newSet(t, item.weight)),
+        ],
       );
     }).toList();
-    active = Workout(
+    final workout = Workout(
       id: newId(),
       planId: plan.id,
       planName: plan.name,
       startedAt: DateTime.now().toUtc(),
       exercises: exercises,
     );
-    await store.put('active', active!.toJson());
+    await store.put('active', workout.toJson());
+    active = workout;
     notifyListeners();
   }
 
@@ -231,19 +311,28 @@ class AppController extends ChangeNotifier with WidgetsBindingObserver {
             planExerciseId: item.planExerciseId,
             rule: item.rule?.copy(),
             sets: item.sets
-                .map((s) => _newSet(s.target, s.weight)..reps = s.reps)
+                .map(
+                  (s) => WorkoutSet(
+                    target: s.target,
+                    reps: s.reps,
+                    weight: s.weight,
+                    rir: s.rir,
+                    kind: s.kind,
+                  ),
+                )
                 .toList(),
           ),
         )
         .toList();
-    active = Workout(
+    final workout = Workout(
       id: newId(),
       planId: session.planId,
       planName: '${session.planName} – znovu',
       startedAt: DateTime.now().toUtc(),
       exercises: exercises,
     );
-    await store.put('active', active!.toJson());
+    await store.put('active', workout.toJson());
+    active = workout;
     notifyListeners();
   }
 
@@ -254,7 +343,7 @@ class AppController extends ChangeNotifier with WidgetsBindingObserver {
     activeSaving = true;
     _saveTimer?.cancel();
     _saveTimer = Timer(const Duration(milliseconds: 400), () {
-      unawaited(flushActive());
+      unawaited(flushActive().catchError((Object _) {}));
     });
   }
 
@@ -264,16 +353,28 @@ class AppController extends ChangeNotifier with WidgetsBindingObserver {
     final workout = active;
     if (workout == null) {
       activeSaving = false;
+      saveError = null;
       return;
     }
+    final snapshot = workout.toJson();
     _flushing = true;
+    _pendingWrites++;
+    final next = _writeTail
+        .catchError((Object _) {})
+        .then((_) => store.put('active', snapshot));
+    _writeTail = next;
     try {
-      await store.put('active', workout.toJson());
+      await next;
+      saveError = null;
+    } catch (_) {
+      saveError = 'Trénink se nepodařilo uložit. Zkus to znovu.';
+      rethrow;
     } finally {
-      _flushing = false;
+      _pendingWrites--;
+      _flushing = _pendingWrites > 0;
+      if (_saveTimer == null && !_flushing) activeSaving = false;
+      notifyListeners();
     }
-    if (_saveTimer == null) activeSaving = false;
-    notifyListeners();
   }
 
   Future<void> discardActive() async {
@@ -281,9 +382,11 @@ class AppController extends ChangeNotifier with WidgetsBindingObserver {
     if (workout == null) return;
     _saveTimer?.cancel();
     _saveTimer = null;
-    activeSaving = false;
-    active = null;
+    await _writeTail.catchError((Object _) {});
     await store.remove(workout.id);
+    activeSaving = false;
+    saveError = null;
+    active = null;
     notifyListeners();
     unawaited(sync());
   }
@@ -313,11 +416,9 @@ class AppController extends ChangeNotifier with WidgetsBindingObserver {
         final item = _planItemFor(plan, exercise);
         if (item == null) continue;
         final rule = exercise.rule ?? item;
-        final ruleJson = rule.toJson()
-          ..['targets'] = exercise.sets.map((s) => s.target).toList();
         final result = evaluateProgression(
-          ruleJson,
-          exercise.sets.map((s) => s.toJson()).toList(),
+          rule.toJson(),
+          exercise.workSets.map((s) => s.toJson()).toList(),
         );
         proposals.add(
           Proposal(
@@ -434,7 +535,7 @@ class AppController extends ChangeNotifier with WidgetsBindingObserver {
     if (state == AppLifecycleState.paused ||
         state == AppLifecycleState.hidden ||
         state == AppLifecycleState.inactive) {
-      unawaited(flushActive());
+      unawaited(flushActive().catchError((Object _) {}));
     }
   }
 

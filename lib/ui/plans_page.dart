@@ -15,7 +15,8 @@ class PlansPage extends StatelessWidget {
     children: [
       Text(
         'TVŮJ TRÉNINK',
-        style: Theme.of(context).textTheme.labelLarge?.copyWith(letterSpacing: 2),
+        style: Theme.of(context).textTheme.labelLarge
+            ?.copyWith(letterSpacing: 2),
       ),
       const SizedBox(height: 8),
       Text(
@@ -31,11 +32,25 @@ class PlansPage extends StatelessWidget {
         icon: const Icon(Icons.add),
         label: const Text('Nový plán'),
       ),
+      const SizedBox(height: 8),
+      OutlinedButton.icon(
+        onPressed: () async {
+          try {
+            await app.startQuickWorkout();
+          } catch (error) {
+            if (context.mounted) {
+              toast(context, 'Trénink se nepodařilo uložit: $error');
+            }
+          }
+        },
+        icon: const Icon(Icons.play_arrow),
+        label: const Text('Volný trénink bez plánu'),
+      ),
       if (app.plans.isEmpty)
         const Padding(
           padding: EdgeInsets.symmetric(vertical: 48),
           child: Center(
-            child: Text('Začni vytvořením prvního tréninkového plánu.'),
+            child: Text('Můžeš začít hned, nebo si vytvořit plán.'),
           ),
         ),
       for (final plan in app.plans) _PlanCard(app: app, plan: plan),
@@ -71,8 +86,10 @@ class _PlanCard extends StatelessWidget {
                   onPressed: () async {
                     try {
                       await app.startPlan(plan);
-                    } on StateError catch (e) {
-                      if (context.mounted) toast(context, e.message);
+                    } catch (error) {
+                      if (context.mounted) {
+                        toast(context, 'Trénink se nepodařilo spustit: $error');
+                      }
                     }
                   },
                   child: const Text('Začít trénink'),

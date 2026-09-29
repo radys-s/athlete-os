@@ -42,7 +42,7 @@ class _ProgressPageState extends State<ProgressPage> {
       final matching = session.exercises.where((e) => e.exerciseId == selected);
       if (matching.isEmpty) continue;
       double maxWeight = 0;
-      for (final set in matching.first.sets.where((s) => s.done)) {
+      for (final set in matching.first.workSets.where((s) => s.done)) {
         if (set.weight > maxWeight) maxWeight = set.weight;
         if (set.weight > bestWeight) bestWeight = set.weight;
         final estimate = estimatedOneRepMax(set.weight, set.reps);
@@ -55,7 +55,8 @@ class _ProgressPageState extends State<ProgressPage> {
       for (final exercise in session.exercises) {
         final muscle = exerciseMuscle(exercise.exerciseId, app.customExercises);
         muscles[muscle] =
-            (muscles[muscle] ?? 0) + exercise.sets.where((s) => s.done).length;
+            (muscles[muscle] ?? 0) +
+            exercise.workSets.where((s) => s.done).length;
       }
     }
     return ListView(
@@ -91,8 +92,12 @@ class _ProgressPageState extends State<ProgressPage> {
               minY: 0,
               gridData: const FlGridData(show: true),
               titlesData: const FlTitlesData(
-                topTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                rightTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                topTitles: AxisTitles(
+                  sideTitles: SideTitles(showTitles: false),
+                ),
+                rightTitles: AxisTitles(
+                  sideTitles: SideTitles(showTitles: false),
+                ),
               ),
               lineBarsData: [
                 LineChartBarData(
@@ -108,7 +113,10 @@ class _ProgressPageState extends State<ProgressPage> {
         ),
         if (app.mode == 'Advanced') ...[
           const SizedBox(height: 22),
-          Text('Pokročilé metriky', style: Theme.of(context).textTheme.titleLarge),
+          Text(
+            'Pokročilé metriky',
+            style: Theme.of(context).textTheme.titleLarge,
+          ),
           Text(
             'Celkový objem dokončených sérií: ${completedVolume(app.sessions.map((s) => s.toJson()).toList()).toStringAsFixed(0)} kg × opakování',
           ),
@@ -120,7 +128,8 @@ class _ProgressPageState extends State<ProgressPage> {
             'Dokončené série podle primární skupiny',
             style: Theme.of(context).textTheme.titleMedium,
           ),
-          for (final entry in muscles.entries) Text('${entry.key}: ${entry.value}'),
+          for (final entry in muscles.entries)
+            Text('${entry.key}: ${entry.value}'),
         ],
       ],
     );

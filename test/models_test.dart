@@ -36,7 +36,12 @@ void main() {
         {
           'exerciseId': 'squat',
           'targets': [12],
-          'rule': {'exerciseId': 'squat', 'weight': 60, 'step': 2.5, 'targets': [12]},
+          'rule': {
+            'exerciseId': 'squat',
+            'weight': 60,
+            'step': 2.5,
+            'targets': [12],
+          },
           'sets': [
             {'target': 12, 'reps': 12, 'weight': 60, 'rir': null, 'done': true},
           ],
@@ -68,8 +73,46 @@ void main() {
     plan.name = 'A';
     expect(plan.validate(), 'Přidej alespoň jeden cvik.');
     plan.exercises.add(
-      PlanExercise(id: 'i', exerciseId: 'x', ruleType: 'repRange', rangeMin: 10, rangeMax: 8),
+      PlanExercise(
+        id: 'i',
+        exerciseId: 'x',
+        ruleType: 'repRange',
+        rangeMin: 10,
+        rangeMax: 8,
+      ),
     );
     expect(plan.validate(), 'Rozsah opakování je neplatný.');
   });
+
+  test(
+    'warmup type and workout note round-trip without changing work sets',
+    () {
+      final workout = Workout(
+        id: 'w',
+        planName: 'Legs',
+        startedAt: DateTime.utc(2026, 9, 29),
+        note: 'Lehký den',
+        exercises: [
+          WorkoutExercise(
+            exerciseId: 'squat',
+            sets: [
+              WorkoutSet(
+                target: 5,
+                reps: 5,
+                weight: 20,
+                kind: 'warmup',
+                done: true,
+              ),
+              WorkoutSet(target: 8, reps: 8, weight: 60, done: true),
+            ],
+          ),
+        ],
+      );
+      final restored = Workout.fromJson(workout.toJson());
+      expect(restored.note, 'Lehký den');
+      expect(restored.exercises.single.workSets.length, 1);
+      expect(restored.exercises.single.bestDoneWeight, 60);
+      expect(restored.exercises.single.sets.first.kind, 'warmup');
+    },
+  );
 }

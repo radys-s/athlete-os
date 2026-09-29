@@ -10,6 +10,8 @@ Mobilní beta gym trackeru. Tréninkové plány, offline zápis sérií, histori
 
 Bez dalších proměnných aplikace ukládá data jen do lokální SQLite databáze telefonu. Data před smazáním aplikace nebo telefonu zálohuj; lokální instalace není náhrada cloudu.
 
+V Nastavení lze ruční JSON zálohu zkopírovat do schránky a obnovit ji v prázdné instalaci. Po zkopírování ji ulož do soukromého souboru; obsah schránky není trvalá záloha a zahrnuje i poznámky k tréninkům.
+
 ## Účet a synchronizace
 
 Vytvoř Supabase projekt a spusť SQL z `supabase/schema.sql`. V Supabase Auth nastav redirect URL `athleteos://login-callback/` a povol přihlášení e-mailem. Aplikaci sestav s:
@@ -39,6 +41,8 @@ Na fyzickém telefonu musí `SCAN_API_URL` ukazovat na dostupnou HTTPS adresu se
 
 `flutter analyze`, `flutter test` a `python -m pytest server -q` jsou automatické kontroly. Před pozváním testerů na fyzických telefonech projdi vytvoření plánu, záznam a obnovení rozepsaného tréninku bez signálu, následnou synchronizaci, konflikt na dvou telefonech a skeny strojů z reálného gymu. Poznamenej počet správných návrhů, chyb a čas odpovědi.
 
-Android lze sestavit na Windows. Pro iPhone sestavení a TestFlight je potřeba Mac s Xcode a Apple Developer Program. iOS sestavení ani distribuce zatím nebyly ověřeny.
+Android lze sestavit na Windows. Pro první vlastní používání na iPhonu počítáme s webovou PWA: `flutter build web --release`, nasazení přes HTTPS a přidání stránky na plochu v Safari. Lokální `http://127.0.0.1` není adresa dostupná z iPhonu. Offline režim a trvalé uložení na iPhonu je nutné ověřit na skutečném zařízení; vymazání dat Safari/PWA může odstranit lokální tréninky. Nativní iOS aplikace a TestFlight později vyžadují Mac s Xcode a odpovídající vývojářský účet.
+
+Aktuální stav implementace a zbývající práce jsou v `docs/IMPLEMENTATION_STATUS.md`.
 
 První dva týdny sleduj, kolik ze šesti lidí dobrovolně zaznamená několik tréninků a chce pokračovat. Rozhovory s nimi určují další opravy; placenou nabídku testuj až na větším vzorku mimo první skupinu.

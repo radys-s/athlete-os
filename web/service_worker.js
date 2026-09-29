@@ -1,15 +1,21 @@
-// Network-first: online vždy načte aktuální build, offline poslouží poslední
-// úspěšně stažená kopie. Cache se plní za běhu (včetně fontů a canvaskitu).
-const CACHE = 'athlete-os-shell-v2';
+// The first successful install caches everything needed to reopen the tracker offline.
+const CACHE = 'athlete-os-shell-v4';
 const PRECACHE = [
-  './', './index.html', './flutter_bootstrap.js', './main.dart.js',
-  './manifest.json', './sqlite3.wasm',
+  './', './index.html', './flutter_bootstrap.js', './flutter.js',
+  './main.dart.js', './manifest.json', './sqlite3.wasm',
+  './assets/AssetManifest.bin', './assets/FontManifest.json',
+  './assets/catalog/exercises.json',
+  './assets/fonts/MaterialIcons-Regular.otf',
+  './assets/packages/cupertino_icons/assets/CupertinoIcons.ttf',
+  './assets/shaders/ink_sparkle.frag', './assets/shaders/stretch_effect.frag',
+  './canvaskit/canvaskit.js', './canvaskit/canvaskit.wasm',
+  './canvaskit/chromium/canvaskit.js', './canvaskit/chromium/canvaskit.wasm',
 ];
 
 self.addEventListener('install', (event) => {
   event.waitUntil(
     caches.open(CACHE)
-      .then((cache) => Promise.allSettled(PRECACHE.map((url) => cache.add(url))))
+      .then((cache) => cache.addAll(PRECACHE))
       .then(() => self.skipWaiting()),
   );
 });
@@ -31,16 +37,21 @@ self.addEventListener('fetch', (event) => {
   if (url.origin !== self.location.origin) return;
   if (url.pathname.includes('/auth/') || url.pathname.includes('/rest/') ||
       url.pathname.includes('/v1/') || url.pathname.includes('/functions/')) return;
-  event.respondWith(
-    fetch(event.request)
-      .then((response) => {
-        if (response.ok) {
-          const copy = response.clone();
-          caches.open(CACHE).then((cache) => cache.put(event.request, copy));
-        }
-        return response;
-      })
-      .catch(() => caches.match(event.request, { ignoreSearch: true })
-        .then((cached) => cached || caches.match('./index.html'))),
-  );
+  event.respondWith((async () => {
+    try {
+      const response = await fetch(event.request);
+      if (response.ok) {
+        const copy = response.clone();
+        event.waitUntil(caches.open(CACHE).then((cache) => cache.put(event.request, copy)));
+      }
+      return response;
+    } catch (_) {
+      const cached = await caches.match(event.request, {ignoreSearch: true});
+      if (cached) return cached;
+      if (event.request.mode === 'navigate') {
+        return (await caches.match('./index.html')) || Response.error();
+      }
+      return Response.error();
+    }
+  })());
 });

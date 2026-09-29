@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../app_controller.dart';
 import '../sync.dart';
@@ -8,6 +9,72 @@ import 'login.dart';
 class SettingsPage extends StatelessWidget {
   final AppController app;
   const SettingsPage(this.app, {super.key});
+
+  Future<void> _copyBackup(BuildContext context) async {
+    try {
+      final backup = await app.exportBackup();
+      await Clipboard.setData(ClipboardData(text: backup));
+      if (context.mounted) {
+        toast(context, 'Záloha je ve schránce. Ulož ji do soukromého souboru.');
+      }
+    } catch (error) {
+      if (context.mounted) {
+        toast(context, 'Zálohu se nepodařilo vytvořit: $error');
+      }
+    }
+  }
+
+  Future<void> _restoreBackup(BuildContext context) async {
+    final input = TextEditingController();
+    final source = await showDialog<String>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Obnovit zálohu'),
+        content: SizedBox(
+          width: 420,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text(
+                'Obnova funguje jen v prázdné instalaci. Záznamy zůstávají místní, dokud nenastavíš cloud.',
+              ),
+              TextField(
+                controller: input,
+                maxLines: 5,
+                decoration: const InputDecoration(labelText: 'JSON záloha'),
+              ),
+              TextButton.icon(
+                onPressed: () async {
+                  final data = await Clipboard.getData('text/plain');
+                  input.text = data?.text ?? '';
+                },
+                icon: const Icon(Icons.content_paste),
+                label: const Text('Vložit ze schránky'),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('Zpět'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(dialogContext, input.text),
+            child: const Text('Obnovit'),
+          ),
+        ],
+      ),
+    );
+    input.dispose();
+    if (source == null || !context.mounted) return;
+    try {
+      final count = await app.importBackup(source);
+      if (context.mounted) toast(context, 'Obnoveno $count záznamů.');
+    } catch (error) {
+      if (context.mounted) toast(context, 'Obnova se nezdařila: $error');
+    }
+  }
 
   @override
   Widget build(BuildContext context) => ListView(
@@ -32,6 +99,21 @@ class SettingsPage extends StatelessWidget {
         ],
         selected: {app.layout},
         onSelectionChanged: (v) => app.setPreferences(newLayout: v.first),
+      ),
+      const SizedBox(height: 20),
+      Text('Ruční záloha', style: Theme.of(context).textTheme.titleLarge),
+      const Text(
+        'Záloha obsahuje tréninky a poznámky. Schránka není trvalé úložiště; po zkopírování obsah ulož do soukromého souboru.',
+      ),
+      OutlinedButton.icon(
+        onPressed: () => _copyBackup(context),
+        icon: const Icon(Icons.copy_all_outlined),
+        label: const Text('Kopírovat zálohu'),
+      ),
+      TextButton.icon(
+        onPressed: () => _restoreBackup(context),
+        icon: const Icon(Icons.restore),
+        label: const Text('Obnovit ze zálohy'),
       ),
       const SizedBox(height: 20),
       Text('Účet a záloha', style: Theme.of(context).textTheme.titleLarge),
@@ -80,11 +162,13 @@ class SettingsPage extends StatelessWidget {
               Row(
                 children: [
                   TextButton(
-                    onPressed: () => app.resolveConflict(remote, keepLocal: true),
+                    onPressed: () =>
+                        app.resolveConflict(remote, keepLocal: true),
                     child: const Text('Ponechat toto zařízení'),
                   ),
                   TextButton(
-                    onPressed: () => app.resolveConflict(remote, keepLocal: false),
+                    onPressed: () =>
+                        app.resolveConflict(remote, keepLocal: false),
                     child: const Text('Převzít cloud'),
                   ),
                 ],

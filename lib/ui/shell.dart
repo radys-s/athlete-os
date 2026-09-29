@@ -122,7 +122,29 @@ class _AppShellState extends State<AppShell> {
                 ),
             ],
           ),
-          body: SafeArea(child: app.locked ? LockedPage(app) : pages[tab]),
+          body: SafeArea(
+            child: Column(
+              children: [
+                if (app.saveError != null)
+                  MaterialBanner(
+                    content: Text(app.saveError!),
+                    actions: [
+                      TextButton(
+                        onPressed: () async {
+                          try {
+                            await app.flushActive();
+                          } catch (_) {
+                            // The banner remains until the save succeeds.
+                          }
+                        },
+                        child: const Text('Uložit znovu'),
+                      ),
+                    ],
+                  ),
+                Expanded(child: app.locked ? LockedPage(app) : pages[tab]),
+              ],
+            ),
+          ),
           bottomNavigationBar: app.locked
               ? null
               : NavigationBar(
@@ -133,9 +155,18 @@ class _AppShellState extends State<AppShell> {
                       icon: Icon(Icons.fitness_center),
                       label: 'Trénink',
                     ),
-                    NavigationDestination(icon: Icon(Icons.history), label: 'Historie'),
-                    NavigationDestination(icon: Icon(Icons.show_chart), label: 'Progres'),
-                    NavigationDestination(icon: Icon(Icons.tune), label: 'Nastavení'),
+                    NavigationDestination(
+                      icon: Icon(Icons.history),
+                      label: 'Historie',
+                    ),
+                    NavigationDestination(
+                      icon: Icon(Icons.show_chart),
+                      label: 'Progres',
+                    ),
+                    NavigationDestination(
+                      icon: Icon(Icons.tune),
+                      label: 'Nastavení',
+                    ),
                   ],
                 ),
         );

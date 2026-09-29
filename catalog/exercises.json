@@ -1,27 +1,320 @@
 [
-  {"id":"bench_press","name":"Bench press","muscle":"Hrudník"},
-  {"id":"incline_press","name":"Incline press","muscle":"Hrudník"},
-  {"id":"chest_press_machine","name":"Chest press machine","muscle":"Hrudník"},
-  {"id":"pec_deck","name":"Pec deck","muscle":"Hrudník"},
-  {"id":"cable_fly","name":"Cable fly","muscle":"Hrudník"},
-  {"id":"squat","name":"Barbell squat","muscle":"Nohy"},
-  {"id":"leg_press","name":"Leg press","muscle":"Nohy"},
-  {"id":"hack_squat","name":"Hack squat","muscle":"Nohy"},
-  {"id":"leg_extension","name":"Leg extension","muscle":"Nohy"},
-  {"id":"leg_curl","name":"Leg curl","muscle":"Nohy"},
-  {"id":"romanian_deadlift","name":"Romanian deadlift","muscle":"Nohy"},
-  {"id":"calf_raise","name":"Calf raise","muscle":"Nohy"},
-  {"id":"deadlift","name":"Deadlift","muscle":"Záda"},
-  {"id":"lat_pulldown","name":"Lat pulldown","muscle":"Záda"},
-  {"id":"seated_row","name":"Seated cable row","muscle":"Záda"},
-  {"id":"chest_supported_row","name":"Chest-supported row","muscle":"Záda"},
-  {"id":"pull_up","name":"Pull-up","muscle":"Záda"},
-  {"id":"shoulder_press","name":"Shoulder press","muscle":"Ramena"},
-  {"id":"lateral_raise","name":"Lateral raise","muscle":"Ramena"},
-  {"id":"reverse_pec_deck","name":"Reverse pec deck","muscle":"Ramena"},
-  {"id":"biceps_curl","name":"Biceps curl","muscle":"Paže"},
-  {"id":"preacher_curl","name":"Preacher curl","muscle":"Paže"},
-  {"id":"triceps_pushdown","name":"Triceps pushdown","muscle":"Paže"},
-  {"id":"dips","name":"Dips","muscle":"Paže"},
-  {"id":"ab_crunch","name":"Ab crunch machine","muscle":"Střed těla"}
+  {
+    "id": "bench_press",
+    "name": "Bench press",
+    "muscle": "Hrudník",
+    "equipment": "Činka"
+  },
+  {
+    "id": "incline_press",
+    "name": "Incline press",
+    "muscle": "Hrudník",
+    "equipment": "Činka"
+  },
+  {
+    "id": "chest_press_machine",
+    "name": "Chest press machine",
+    "muscle": "Hrudník",
+    "equipment": "Stroj"
+  },
+  {
+    "id": "pec_deck",
+    "name": "Pec deck",
+    "muscle": "Hrudník",
+    "equipment": "Stroj"
+  },
+  {
+    "id": "cable_fly",
+    "name": "Cable fly",
+    "muscle": "Hrudník",
+    "equipment": "Kladka"
+  },
+  {
+    "id": "squat",
+    "name": "Barbell squat",
+    "muscle": "Nohy",
+    "equipment": "Činka"
+  },
+  {
+    "id": "leg_press",
+    "name": "Leg press",
+    "muscle": "Nohy",
+    "equipment": "Stroj"
+  },
+  {
+    "id": "hack_squat",
+    "name": "Hack squat",
+    "muscle": "Nohy",
+    "equipment": "Stroj"
+  },
+  {
+    "id": "leg_extension",
+    "name": "Leg extension",
+    "muscle": "Nohy",
+    "equipment": "Stroj"
+  },
+  {
+    "id": "leg_curl",
+    "name": "Leg curl",
+    "muscle": "Nohy",
+    "equipment": "Stroj"
+  },
+  {
+    "id": "romanian_deadlift",
+    "name": "Romanian deadlift",
+    "muscle": "Nohy",
+    "equipment": "Činka"
+  },
+  {
+    "id": "calf_raise",
+    "name": "Calf raise",
+    "muscle": "Nohy",
+    "equipment": "Stroj"
+  },
+  {
+    "id": "deadlift",
+    "name": "Deadlift",
+    "muscle": "Záda",
+    "equipment": "Činka"
+  },
+  {
+    "id": "lat_pulldown",
+    "name": "Lat pulldown",
+    "muscle": "Záda",
+    "equipment": "Kladka"
+  },
+  {
+    "id": "seated_row",
+    "name": "Seated cable row",
+    "muscle": "Záda",
+    "equipment": "Kladka"
+  },
+  {
+    "id": "chest_supported_row",
+    "name": "Chest-supported row",
+    "muscle": "Záda",
+    "equipment": "Stroj"
+  },
+  {
+    "id": "pull_up",
+    "name": "Pull-up",
+    "muscle": "Záda",
+    "equipment": "Vlastní váha"
+  },
+  {
+    "id": "shoulder_press",
+    "name": "Shoulder press",
+    "muscle": "Ramena",
+    "equipment": "Stroj"
+  },
+  {
+    "id": "lateral_raise",
+    "name": "Lateral raise",
+    "muscle": "Ramena",
+    "equipment": "Jednoručky"
+  },
+  {
+    "id": "reverse_pec_deck",
+    "name": "Reverse pec deck",
+    "muscle": "Ramena",
+    "equipment": "Stroj"
+  },
+  {
+    "id": "biceps_curl",
+    "name": "Biceps curl",
+    "muscle": "Paže",
+    "equipment": "Jednoručky"
+  },
+  {
+    "id": "preacher_curl",
+    "name": "Preacher curl",
+    "muscle": "Paže",
+    "equipment": "Stroj"
+  },
+  {
+    "id": "triceps_pushdown",
+    "name": "Triceps pushdown",
+    "muscle": "Paže",
+    "equipment": "Kladka"
+  },
+  {
+    "id": "dips",
+    "name": "Dips",
+    "muscle": "Paže",
+    "equipment": "Vlastní váha"
+  },
+  {
+    "id": "ab_crunch",
+    "name": "Ab crunch machine",
+    "muscle": "Střed těla",
+    "equipment": "Stroj"
+  },
+  {
+    "id": "dumbbell_bench_press",
+    "name": "Dumbbell bench press",
+    "muscle": "Hrudník",
+    "equipment": "Jednoručky"
+  },
+  {
+    "id": "incline_dumbbell_press",
+    "name": "Incline dumbbell press",
+    "muscle": "Hrudník",
+    "equipment": "Jednoručky"
+  },
+  {
+    "id": "push_up",
+    "name": "Push-up",
+    "muscle": "Hrudník",
+    "equipment": "Vlastní váha"
+  },
+  {
+    "id": "front_squat",
+    "name": "Front squat",
+    "muscle": "Nohy",
+    "equipment": "Činka"
+  },
+  {
+    "id": "goblet_squat",
+    "name": "Goblet squat",
+    "muscle": "Nohy",
+    "equipment": "Jednoručky"
+  },
+  {
+    "id": "smith_squat",
+    "name": "Smith machine squat",
+    "muscle": "Nohy",
+    "equipment": "Stroj"
+  },
+  {
+    "id": "hip_thrust",
+    "name": "Hip thrust",
+    "muscle": "Nohy",
+    "equipment": "Činka"
+  },
+  {
+    "id": "bulgarian_split_squat",
+    "name": "Bulgarian split squat",
+    "muscle": "Nohy",
+    "equipment": "Jednoručky"
+  },
+  {
+    "id": "walking_lunge",
+    "name": "Walking lunge",
+    "muscle": "Nohy",
+    "equipment": "Jednoručky"
+  },
+  {
+    "id": "seated_calf_raise",
+    "name": "Seated calf raise",
+    "muscle": "Nohy",
+    "equipment": "Stroj"
+  },
+  {
+    "id": "barbell_row",
+    "name": "Barbell row",
+    "muscle": "Záda",
+    "equipment": "Činka"
+  },
+  {
+    "id": "dumbbell_row",
+    "name": "One-arm dumbbell row",
+    "muscle": "Záda",
+    "equipment": "Jednoručky"
+  },
+  {
+    "id": "close_grip_pulldown",
+    "name": "Close-grip lat pulldown",
+    "muscle": "Záda",
+    "equipment": "Kladka"
+  },
+  {
+    "id": "machine_row",
+    "name": "Machine row",
+    "muscle": "Záda",
+    "equipment": "Stroj"
+  },
+  {
+    "id": "assisted_pull_up",
+    "name": "Assisted pull-up",
+    "muscle": "Záda",
+    "equipment": "Stroj"
+  },
+  {
+    "id": "face_pull",
+    "name": "Face pull",
+    "muscle": "Ramena",
+    "equipment": "Kladka"
+  },
+  {
+    "id": "overhead_press",
+    "name": "Barbell overhead press",
+    "muscle": "Ramena",
+    "equipment": "Činka"
+  },
+  {
+    "id": "dumbbell_shoulder_press",
+    "name": "Dumbbell shoulder press",
+    "muscle": "Ramena",
+    "equipment": "Jednoručky"
+  },
+  {
+    "id": "cable_lateral_raise",
+    "name": "Cable lateral raise",
+    "muscle": "Ramena",
+    "equipment": "Kladka"
+  },
+  {
+    "id": "rear_delt_fly",
+    "name": "Rear delt dumbbell fly",
+    "muscle": "Ramena",
+    "equipment": "Jednoručky"
+  },
+  {
+    "id": "barbell_curl",
+    "name": "Barbell curl",
+    "muscle": "Paže",
+    "equipment": "Činka"
+  },
+  {
+    "id": "hammer_curl",
+    "name": "Hammer curl",
+    "muscle": "Paže",
+    "equipment": "Jednoručky"
+  },
+  {
+    "id": "cable_curl",
+    "name": "Cable curl",
+    "muscle": "Paže",
+    "equipment": "Kladka"
+  },
+  {
+    "id": "overhead_triceps_extension",
+    "name": "Overhead triceps extension",
+    "muscle": "Paže",
+    "equipment": "Kladka"
+  },
+  {
+    "id": "skull_crusher",
+    "name": "Skull crusher",
+    "muscle": "Paže",
+    "equipment": "Činka"
+  },
+  {
+    "id": "assisted_dips",
+    "name": "Assisted dips",
+    "muscle": "Paže",
+    "equipment": "Stroj"
+  },
+  {
+    "id": "cable_crunch",
+    "name": "Cable crunch",
+    "muscle": "Střed těla",
+    "equipment": "Kladka"
+  },
+  {
+    "id": "hanging_leg_raise",
+    "name": "Hanging leg raise",
+    "muscle": "Střed těla",
+    "equipment": "Vlastní váha"
+  }
 ]

@@ -14,10 +14,31 @@ class ExercisePicker extends StatefulWidget {
 
 class _ExercisePickerState extends State<ExercisePicker> {
   String query = '';
+  String muscleFilter = 'Vše';
+  String equipmentFilter = 'Vše';
+
+  static const muscles = [
+    'Hrudník',
+    'Záda',
+    'Nohy',
+    'Ramena',
+    'Paže',
+    'Střed těla',
+    'Ostatní',
+  ];
+  static const equipment = [
+    'Činka',
+    'Jednoručky',
+    'Stroj',
+    'Kladka',
+    'Vlastní váha',
+    'Jiné',
+  ];
 
   Future<void> createCustom() async {
     final name = TextEditingController();
     String muscle = 'Ostatní';
+    String tool = 'Jiné';
     final result = await showDialog<bool>(
       context: context,
       builder: (context) => StatefulBuilder(
@@ -33,16 +54,18 @@ class _ExercisePickerState extends State<ExercisePicker> {
               DropdownButton<String>(
                 value: muscle,
                 isExpanded: true,
-                items: const [
-                  'Hrudník',
-                  'Záda',
-                  'Nohy',
-                  'Ramena',
-                  'Paže',
-                  'Střed těla',
-                  'Ostatní',
-                ].map((m) => DropdownMenuItem(value: m, child: Text(m))).toList(),
+                items: muscles
+                    .map((m) => DropdownMenuItem(value: m, child: Text(m)))
+                    .toList(),
                 onChanged: (v) => update(() => muscle = v!),
+              ),
+              DropdownButton<String>(
+                value: tool,
+                isExpanded: true,
+                items: equipment
+                    .map((e) => DropdownMenuItem(value: e, child: Text(e)))
+                    .toList(),
+                onChanged: (v) => update(() => tool = v!),
               ),
             ],
           ),
@@ -60,7 +83,7 @@ class _ExercisePickerState extends State<ExercisePicker> {
       ),
     );
     if (result == true && name.text.trim().isNotEmpty) {
-      await widget.app.saveExercise(name.text, muscle);
+      await widget.app.saveExercise(name.text, muscle, tool);
       if (mounted) setState(() {});
     }
     name.dispose();
@@ -70,7 +93,12 @@ class _ExercisePickerState extends State<ExercisePicker> {
   Widget build(BuildContext context) {
     final exercises = [...builtInExercises, ...widget.app.customExercises]
         .where(
-          (e) => (e['name'] as String).toLowerCase().contains(query.toLowerCase()),
+          (e) =>
+              (e['name'] as String).toLowerCase().contains(
+                query.toLowerCase(),
+              ) &&
+              (muscleFilter == 'Vše' || e['muscle'] == muscleFilter) &&
+              (equipmentFilter == 'Vše' || e['equipment'] == equipmentFilter),
         )
         .toList();
     return Scaffold(
@@ -87,14 +115,51 @@ class _ExercisePickerState extends State<ExercisePicker> {
               onChanged: (v) => setState(() => query = v),
             ),
           ),
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: Row(
+              children: [
+                for (final muscle in ['Vše', ...muscles])
+                  Padding(
+                    padding: const EdgeInsets.only(right: 6),
+                    child: ChoiceChip(
+                      label: Text(muscle),
+                      selected: muscleFilter == muscle,
+                      onSelected: (_) => setState(() => muscleFilter = muscle),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
+            child: Row(
+              children: [
+                for (final tool in ['Vše', ...equipment])
+                  Padding(
+                    padding: const EdgeInsets.only(right: 6),
+                    child: ChoiceChip(
+                      label: Text(tool),
+                      selected: equipmentFilter == tool,
+                      onSelected: (_) => setState(() => equipmentFilter = tool),
+                    ),
+                  ),
+              ],
+            ),
+          ),
           Expanded(
             child: ListView(
               children: [
                 for (final exercise in exercises)
                   ListTile(
                     title: Text(exercise['name'] as String),
-                    subtitle: Text(exercise['muscle'] as String),
-                    onTap: () => Navigator.pop(context, exercise['id'] as String),
+                    subtitle: Text(
+                      '${exercise['muscle']} · ${exercise['equipment'] ?? 'Jiné'}',
+                    ),
+                    onTap: () =>
+                        Navigator.pop(context, exercise['id'] as String),
                   ),
               ],
             ),
@@ -119,9 +184,13 @@ class _ExercisePickerState extends State<ExercisePicker> {
                   onPressed: () async {
                     final id = await Navigator.push<String>(
                       context,
-                      MaterialPageRoute(builder: (_) => ScanPage(app: widget.app)),
+                      MaterialPageRoute(
+                        builder: (_) => ScanPage(app: widget.app),
+                      ),
                     );
-                    if (id != null && context.mounted) Navigator.pop(context, id);
+                    if (id != null && context.mounted) {
+                      Navigator.pop(context, id);
+                    }
                   },
                   icon: const Icon(Icons.camera_alt_outlined),
                   label: const Text('Sken stroje'),

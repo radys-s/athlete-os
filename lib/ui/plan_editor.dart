@@ -16,7 +16,9 @@ class PlanEditor extends StatefulWidget {
 
 class _PlanEditorState extends State<PlanEditor> {
   late final Plan plan = widget.original?.copy() ?? Plan.create();
-  late final TextEditingController name = TextEditingController(text: plan.name);
+  late final TextEditingController name = TextEditingController(
+    text: plan.name,
+  );
 
   @override
   void dispose() {
@@ -34,7 +36,9 @@ class _PlanEditorState extends State<PlanEditor> {
       toast(context, 'Cvik už je v tomto plánu.');
       return;
     }
-    setState(() => plan.exercises.add(PlanExercise(id: newId(), exerciseId: id)));
+    setState(
+      () => plan.exercises.add(PlanExercise(id: newId(), exerciseId: id)),
+    );
   }
 
   void move(int from, int to) => setState(() {
@@ -70,7 +74,10 @@ class _PlanEditorState extends State<PlanEditor> {
             _ItemEditor(
               key: ValueKey(items[i].id),
               item: items[i],
-              title: exerciseName(items[i].exerciseId, widget.app.customExercises),
+              title: exerciseName(
+                items[i].exerciseId,
+                widget.app.customExercises,
+              ),
               onUp: i == 0 ? null : () => move(i, i - 1),
               onDown: i == items.length - 1 ? null : () => move(i, i + 1),
               onRemove: () => setState(() => items.removeAt(i)),
@@ -175,7 +182,10 @@ class _ItemEditorState extends State<_ItemEditor> {
               initialValue: item.ruleType,
               decoration: const InputDecoration(labelText: 'Pravidlo progrese'),
               items: const [
-                DropdownMenuItem(value: 'fixed', child: Text('Pevné cíle sérií')),
+                DropdownMenuItem(
+                  value: 'fixed',
+                  child: Text('Pevné cíle sérií'),
+                ),
                 DropdownMenuItem(
                   value: 'repRange',
                   child: Text('Rozsah opakování'),
@@ -207,6 +217,29 @@ class _ItemEditorState extends State<_ItemEditor> {
                 ),
               ],
             ),
+            Row(
+              children: [
+                Text('Rozcvičovací série: ${item.warmupSets}'),
+                IconButton(
+                  tooltip: 'Odebrat rozcvičovací sérii',
+                  onPressed: item.warmupSets == 0
+                      ? null
+                      : () => setState(() => item.warmupSets--),
+                  icon: const Icon(Icons.remove_circle_outline),
+                ),
+                IconButton(
+                  tooltip: 'Přidat rozcvičovací sérii',
+                  onPressed: item.warmupSets >= 5
+                      ? null
+                      : () => setState(() => item.warmupSets++),
+                  icon: const Icon(Icons.add_circle_outline),
+                ),
+              ],
+            ),
+            if (item.warmupSets > 0)
+              const Text(
+                'Rozcvičovací váha je jen orientační a lze ji v tréninku změnit.',
+              ),
             if (range)
               Wrap(
                 spacing: 12,
@@ -216,7 +249,9 @@ class _ItemEditorState extends State<_ItemEditor> {
                     child: TextField(
                       controller: rangeMin,
                       keyboardType: TextInputType.number,
-                      decoration: const InputDecoration(labelText: 'Od opakování'),
+                      decoration: const InputDecoration(
+                        labelText: 'Od opakování',
+                      ),
                       onChanged: (v) => item.rangeMin = int.tryParse(v) ?? 0,
                     ),
                   ),
@@ -225,7 +260,9 @@ class _ItemEditorState extends State<_ItemEditor> {
                     child: TextField(
                       controller: rangeMax,
                       keyboardType: TextInputType.number,
-                      decoration: const InputDecoration(labelText: 'Do opakování'),
+                      decoration: const InputDecoration(
+                        labelText: 'Do opakování',
+                      ),
                       onChanged: (v) {
                         item.rangeMax = int.tryParse(v) ?? 0;
                         if (item.rangeMax >= 1) item.syncTargetsToRange();
@@ -273,7 +310,8 @@ class _ItemEditorState extends State<_ItemEditor> {
                       .split(',')
                       .map((s) => int.tryParse(s.trim()))
                       .toList();
-                  if (parsed.isNotEmpty && parsed.every((n) => n != null && n > 0)) {
+                  if (parsed.isNotEmpty &&
+                      parsed.every((n) => n != null && n > 0)) {
                     setState(() => item.targets = parsed.cast<int>());
                   }
                 },

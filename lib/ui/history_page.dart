@@ -78,13 +78,14 @@ class _SessionCard extends StatelessWidget {
         children: [
           Text(session.planName, style: Theme.of(context).textTheme.titleLarge),
           Text(formatDateTime(session.finishedAt ?? session.startedAt)),
+          if (session.note.trim().isNotEmpty) Text(session.note),
           for (final exercise in session.exercises)
             Padding(
               padding: const EdgeInsets.only(top: 8),
               child: Text(
                 '${exercise.weightPr ? '🏆 PR · ' : ''}'
                 '${exerciseName(exercise.exerciseId, app.customExercises)}: '
-                '${exercise.sets.where((s) => s.done).map((s) => '${fmtNum(s.weight)} kg × ${s.reps}').join(' · ')}',
+                '${exercise.workSets.where((s) => s.done).map((s) => '${fmtNum(s.weight)} kg × ${s.reps}').join(' · ')}',
               ),
             ),
           if (app.mode != 'Simple')

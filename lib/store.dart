@@ -4,6 +4,7 @@ import 'package:drift/drift.dart';
 import 'package:uuid/uuid.dart';
 
 import 'database.dart';
+import 'models.dart';
 
 class LocalStore {
   final AthleteDatabase db;
@@ -195,6 +196,111 @@ class LocalStore {
       WHERE deleted=0 AND kind IN ('plan','session','exercise','active')
     ''').get();
     return rows.first.read<int>('count') > 0;
+  }
+
+  Future<String> exportBackup() async {
+    final rows = await db.customSelect('''
+      SELECT kind,payload FROM entities
+      WHERE deleted=0 AND kind IN ('plan','session','active','exercise','settings')
+      ORDER BY kind,id
+    ''').get();
+    return jsonEncode({
+      'format': 'athlete-os-backup',
+      'version': 1,
+      'createdAt': DateTime.now().toUtc().toIso8601String(),
+      'items': [
+        for (final row in rows)
+          {
+            'kind': row.read<String>('kind'),
+            'payload': jsonDecode(row.read<String>('payload')),
+          },
+      ],
+    });
+  }
+
+  Future<int> importBackup(String source) async {
+    if (source.length > 20 * 1024 * 1024) {
+      throw const FormatException(
+        'Záloha je příliš velká pro vložení ze schránky.',
+      );
+    }
+    final decoded = jsonDecode(source);
+    if (decoded is! Map ||
+        decoded['format'] != 'athlete-os-backup' ||
+        decoded['version'] != 1 ||
+        decoded['items'] is! List) {
+      throw const FormatException('Toto není podporovaná záloha Athlete OS.');
+    }
+    final allowedKinds = {'plan', 'session', 'active', 'exercise', 'settings'};
+    final items = <(String, Map<String, dynamic>)>[];
+    final ids = <String>{};
+    var activeCount = 0;
+    for (final rawItem in decoded['items'] as List) {
+      if (rawItem is! Map || rawItem['payload'] is! Map) {
+        throw const FormatException('Záloha obsahuje neplatný záznam.');
+      }
+      final kind = rawItem['kind'];
+      final payload = Map<String, dynamic>.from(rawItem['payload'] as Map);
+      final id = payload['id'];
+      if (kind is! String ||
+          !allowedKinds.contains(kind) ||
+          id is! String ||
+          id.isEmpty ||
+          !ids.add(id)) {
+        throw const FormatException(
+          'Záloha obsahuje neplatná nebo duplicitní ID.',
+        );
+      }
+      switch (kind) {
+        case 'plan':
+          Plan.fromJson(payload);
+          break;
+        case 'session':
+        case 'active':
+          Workout.fromJson(payload);
+          if (kind == 'active') activeCount++;
+          break;
+        case 'exercise':
+          if (payload['name'] is! String || payload['muscle'] is! String) {
+            throw const FormatException('Záloha obsahuje neplatný cvik.');
+          }
+          break;
+        case 'settings':
+          if (id != 'settings') {
+            throw const FormatException('Záloha obsahuje neplatné nastavení.');
+          }
+          break;
+      }
+      items.add((kind, payload));
+    }
+    if (activeCount > 1) {
+      throw const FormatException('Záloha obsahuje více rozepsaných tréninků.');
+    }
+    await db.transaction(() async {
+      final existing = await db
+          .customSelect(
+            "SELECT COUNT(*) AS count FROM entities WHERE kind!='settings'",
+          )
+          .get();
+      if (await accountOwner() != null ||
+          existing.first.read<int>('count') > 0) {
+        throw StateError(
+          'Obnovu lze provést jen do prázdné instalace bez účtu.',
+        );
+      }
+      await db.customStatement("DELETE FROM entities WHERE kind='settings'");
+      final now = DateTime.now().toUtc().toIso8601String();
+      for (final (kind, payload) in items) {
+        await db.customStatement(
+          '''
+          INSERT INTO entities(id,kind,payload,updated_at,dirty,deleted,conflict,remote_revision)
+          VALUES(?,?,?,?,1,0,0,0)
+        ''',
+          [payload['id'], kind, jsonEncode(payload), now],
+        );
+      }
+    });
+    return items.length;
   }
 
   Future<void> bindAccount(String userId) async {
