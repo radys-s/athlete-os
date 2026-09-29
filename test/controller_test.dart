@@ -280,4 +280,13 @@ void main() {
       isEmpty,
     );
   });
+
+  test('wiping local data clears plans, workout and metadata', () async {
+    await app.savePlan(_plan());
+    await app.startPlan(app.plans.single);
+    await app.wipeLocalData();
+    expect(app.plans, isEmpty);
+    expect(app.active, isNull);
+    expect(await store.all('active'), isEmpty);
+  });
 }

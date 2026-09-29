@@ -556,6 +556,33 @@ class AppController extends ChangeNotifier with WidgetsBindingObserver {
     );
   }
 
+  /// Deletes the cloud account (RPC `delete_my_account`) and all local data.
+  Future<void> deleteAccount() async {
+    if (!CloudSync.configured || user == null) {
+      throw StateError('Nejsi přihlášený.');
+    }
+    await Supabase.instance.client.rpc('delete_my_account');
+    await wipeLocalData();
+    try {
+      await Supabase.instance.client.auth.signOut();
+    } catch (_) {
+      // The auth user no longer exists; a failing sign-out is expected.
+    }
+    await _refreshAccountState();
+  }
+
+  /// Removes all data stored on this device (the cloud copy stays).
+  Future<void> wipeLocalData() async {
+    _saveTimer?.cancel();
+    _saveTimer = null;
+    activeSaving = false;
+    saveError = null;
+    active = null;
+    await store.wipeLocal();
+    conflicts = [];
+    await reload();
+  }
+
   Future<void> signOut() async {
     if (CloudSync.configured) await Supabase.instance.client.auth.signOut();
     locked = await store.accountOwner() != null;

@@ -76,6 +76,36 @@ class SettingsPage extends StatelessWidget {
     }
   }
 
+  Future<void> _deleteAccount(BuildContext context) async {
+    if (!await confirmDialog(
+      context,
+      title: 'Smazat účet?',
+      body: 'Účet i všechna data v cloudu se trvale smažou a stejně tak data v tomto zařízení. Nejdřív si ulož zálohu do souboru.',
+      confirmLabel: 'Smazat vše',
+    )) {
+      return;
+    }
+    try {
+      await app.deleteAccount();
+      if (context.mounted) toast(context, 'Účet a data byly smazány.');
+    } catch (error) {
+      if (context.mounted) toast(context, 'Účet se nepodařilo smazat: $error');
+    }
+  }
+
+  Future<void> _wipeDevice(BuildContext context) async {
+    if (!await confirmDialog(
+      context,
+      title: 'Smazat data v zařízení?',
+      body: 'Tréninky a plány v tomto zařízení se trvale smažou. Cloudová kopie zůstane. Nejdřív si ulož zálohu.',
+      confirmLabel: 'Smazat',
+    )) {
+      return;
+    }
+    await app.wipeLocalData();
+    if (context.mounted) toast(context, 'Data v zařízení byla smazána.');
+  }
+
   Future<void> _copyBackup(BuildContext context) async {
     try {
       final backup = await app.exportBackup();
@@ -228,7 +258,16 @@ class SettingsPage extends StatelessWidget {
           child: const Text('Synchronizovat'),
         ),
         TextButton(onPressed: app.signOut, child: const Text('Odhlásit se')),
+        TextButton(
+          onPressed: () => _deleteAccount(context),
+          child: const Text('Smazat účet a data'),
+        ),
       ],
+      const SizedBox(height: 8),
+      TextButton(
+        onPressed: () => _wipeDevice(context),
+        child: const Text('Smazat data v tomto zařízení'),
+      ),
       if (app.syncError != null) Text(app.syncError!),
       for (final remote in app.conflicts)
         Card(

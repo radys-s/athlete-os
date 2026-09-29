@@ -180,6 +180,46 @@ class LocalStore {
     return rows.first.read<int>('count');
   }
 
+  Future<String?> meta(String key) async {
+    final rows = await db
+        .customSelect(
+          'SELECT value FROM metadata WHERE key=?',
+          variables: [Variable.withString(key)],
+        )
+        .get();
+    return rows.isEmpty ? null : rows.first.read<String>('value');
+  }
+
+  Future<void> setMeta(String key, String value) => db.customStatement(
+    'INSERT INTO metadata(key,value) VALUES(?,?) '
+    'ON CONFLICT(key) DO UPDATE SET value=excluded.value',
+    [key, value],
+  );
+
+  /// Ids of rows waiting for a conflict decision.
+  Future<List<String>> conflictIds() async {
+    final rows = await db
+        .customSelect('SELECT id FROM entities WHERE conflict=1')
+        .get();
+    return [for (final row in rows) row.read<String>('id')];
+  }
+
+  /// Removes every local record (used after account deletion or when
+  /// handing the device over).
+  Future<void> wipeLocal() async {
+    await db.transaction(() async {
+      await db.customStatement('DELETE FROM entities');
+      await db.customStatement('DELETE FROM metadata');
+    });
+  }
+
+  Future<int> dirtyCount() async {
+    final rows = await db
+        .customSelect('SELECT COUNT(*) AS count FROM entities WHERE dirty=1')
+        .get();
+    return rows.first.read<int>('count');
+  }
+
   Future<String?> accountOwner() async {
     final rows = await db
         .customSelect(
