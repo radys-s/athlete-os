@@ -1,7 +1,12 @@
+import 'dart:convert';
+
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../app_controller.dart';
+import '../csv_export.dart';
+import '../models.dart';
 import '../sync.dart';
 import 'common.dart';
 import 'login.dart';
@@ -9,6 +14,65 @@ import 'login.dart';
 class SettingsPage extends StatelessWidget {
   final AppController app;
   const SettingsPage(this.app, {super.key});
+
+  static String _stamp() => DateTime.now().toIso8601String().substring(0, 10);
+
+  Future<void> _saveFile(
+    BuildContext context, {
+    required String name,
+    required String content,
+    required String mime,
+  }) async {
+    try {
+      final target = await FilePicker.saveFile(
+        fileName: name,
+        bytes: utf8.encode(content),
+        mimeType: mime,
+        dialogTitle: 'Uložit soubor',
+      );
+      if (context.mounted && target != null) toast(context, 'Uloženo: $name');
+    } catch (error) {
+      if (context.mounted) toast(context, 'Soubor se nepodařilo uložit: $error');
+    }
+  }
+
+  Future<void> _backupToFile(BuildContext context) async {
+    final backup = await app.exportBackup();
+    if (!context.mounted) return;
+    await _saveFile(
+      context,
+      name: 'athlete-os-zaloha-${_stamp()}.json',
+      content: backup,
+      mime: 'application/json',
+    );
+  }
+
+  Future<void> _exportCsv(BuildContext context) async {
+    await _saveFile(
+      context,
+      name: 'athlete-os-serie-${_stamp()}.csv',
+      content: sessionsToCsv(
+        app.sessions,
+        (id) => exerciseName(id, app.customExercises),
+      ),
+      mime: 'text/csv',
+    );
+  }
+
+  Future<void> _restoreFromFile(BuildContext context) async {
+    try {
+      final picked = await FilePicker.pickFiles(
+        type: FileType.custom,
+        allowedExtensions: const ['json'],
+      );
+      if (picked.isEmpty) return;
+      final source = utf8.decode(await picked.first.readAsBytes());
+      final count = await app.importBackup(source);
+      if (context.mounted) toast(context, 'Obnoveno $count záznamů.');
+    } catch (error) {
+      if (context.mounted) toast(context, 'Obnova se nezdařila: $error');
+    }
+  }
 
   Future<void> _copyBackup(BuildContext context) async {
     try {
@@ -103,12 +167,27 @@ class SettingsPage extends StatelessWidget {
       const SizedBox(height: 20),
       Text('Ruční záloha', style: Theme.of(context).textTheme.titleLarge),
       const Text(
-        'Záloha obsahuje tréninky a poznámky. Schránka není trvalé úložiště; po zkopírování obsah ulož do soukromého souboru.',
+        'Záloha obsahuje tréninky a poznámky. Ulož ji do souboru a měj ji mimo telefon; data v prohlížeči nejsou trvalá záloha.',
+      ),
+      FilledButton.icon(
+        onPressed: () => _backupToFile(context),
+        icon: const Icon(Icons.download_outlined),
+        label: const Text('Uložit zálohu do souboru'),
+      ),
+      OutlinedButton.icon(
+        onPressed: () => _restoreFromFile(context),
+        icon: const Icon(Icons.upload_file_outlined),
+        label: const Text('Obnovit ze souboru'),
+      ),
+      OutlinedButton.icon(
+        onPressed: () => _exportCsv(context),
+        icon: const Icon(Icons.table_chart_outlined),
+        label: const Text('Export sérií (CSV)'),
       ),
       OutlinedButton.icon(
         onPressed: () => _copyBackup(context),
         icon: const Icon(Icons.copy_all_outlined),
-        label: const Text('Kopírovat zálohu'),
+        label: const Text('Kopírovat zálohu do schránky'),
       ),
       TextButton.icon(
         onPressed: () => _restoreBackup(context),
