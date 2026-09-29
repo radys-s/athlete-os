@@ -219,6 +219,34 @@ class AppController extends ChangeNotifier with WidgetsBindingObserver {
     await savePlan(copy);
   }
 
+  /// Saves an edited finished workout and recomputes PR flags of all
+  /// sessions in chronological order. Pending proposals of the edited
+  /// workout are dropped because they were derived from the old numbers.
+  Future<void> saveEditedSession(Workout edited) async {
+    edited.proposals = edited.proposals
+        .where((p) => p.status != 'pending')
+        .toList();
+    await store.put('session', edited.toJson());
+    await reload();
+    final best = <String, double>{};
+    for (final session in sessions.reversed) {
+      var changed = false;
+      for (final exercise in session.exercises) {
+        final top = exercise.bestDoneWeight;
+        final previous = best[exercise.exerciseId] ?? 0;
+        final pr = top > 0 && top > previous;
+        if (exercise.weightPr != pr) {
+          exercise.weightPr = pr;
+          changed = true;
+        }
+        if (top > previous) best[exercise.exerciseId] = top;
+      }
+      if (changed) await store.put('session', session.toJson());
+    }
+    await reload();
+    unawaited(sync());
+  }
+
   Future<void> deleteSession(String id) async {
     await store.remove(id);
     await reload();

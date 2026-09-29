@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../app_controller.dart';
 import '../models.dart';
 import 'common.dart';
+import 'history_detail.dart';
 
 class HistoryPage extends StatelessWidget {
   final AppController app;
@@ -126,6 +127,16 @@ class _SessionCard extends StatelessWidget {
                 ),
               ),
           const SizedBox(height: 8),
+          OutlinedButton.icon(
+            onPressed: () => Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => HistoryDetailPage(app: app, session: session),
+              ),
+            ),
+            icon: const Icon(Icons.edit_note),
+            label: const Text('Detail a úprava'),
+          ),
           OutlinedButton.icon(
             onPressed: app.active != null
                 ? null

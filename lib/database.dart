@@ -30,7 +30,7 @@ class Metadata extends Table {
 @DriftDatabase(tables: [Entities, Metadata])
 class AthleteDatabase extends _$AthleteDatabase {
   AthleteDatabase([QueryExecutor? executor])
-      : super(executor ?? openDatabaseConnection());
+    : super(executor ?? openDatabaseConnection());
 
   @override
   int get schemaVersion => 1;

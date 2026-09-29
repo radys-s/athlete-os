@@ -13,7 +13,13 @@ void main() {
         WorkoutExercise(
           exerciseId: 'bench',
           sets: [
-            WorkoutSet(target: 8, reps: 8, weight: 60, done: true, kind: 'warmup'),
+            WorkoutSet(
+              target: 8,
+              reps: 8,
+              weight: 60,
+              done: true,
+              kind: 'warmup',
+            ),
             WorkoutSet(target: 8, reps: 7, weight: 80, rir: 2, done: true),
           ],
         ),

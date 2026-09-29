@@ -272,7 +272,7 @@ class _ExerciseCardState extends State<_ExerciseCard> {
             ),
             const SizedBox(height: 8),
             for (var j = 0; j < exercise.sets.length; j++)
-              _SetRow(
+              SetRow(
                 key: ObjectKey(exercise.sets[j]),
                 index: j,
                 set: exercise.sets[j],
@@ -316,14 +316,14 @@ class _ExerciseCardState extends State<_ExerciseCard> {
   }
 }
 
-class _SetRow extends StatelessWidget {
+class SetRow extends StatelessWidget {
   final int index;
   final WorkoutSet set;
   final bool showRir;
   final VoidCallback onChanged;
   final ValueChanged<bool> onDone;
   final VoidCallback? onRemove;
-  const _SetRow({
+  const SetRow({
     super.key,
     required this.index,
     required this.set,

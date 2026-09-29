@@ -254,4 +254,30 @@ void main() {
     );
     expect(saved.exercises.single.sets.first.weight, 47.5);
   });
+
+  test('editing a finished workout recomputes PR flags', () async {
+    await app.savePlan(_plan());
+    for (final w in [40.0, 50.0]) {
+      await app.startPlan(app.plans.single);
+      for (final set in app.active!.exercises.single.sets) {
+        set.done = true;
+        set.weight = w;
+      }
+      await app.finish();
+      await Future<void>.delayed(const Duration(milliseconds: 5));
+    }
+    final newest = app.sessions.first;
+    expect(newest.exercises.single.weightPr, isTrue);
+    final edited = newest.copy();
+    for (final set in edited.exercises.single.sets) {
+      set.weight = 30;
+    }
+    await app.saveEditedSession(edited);
+    expect(app.sessions.first.id, newest.id);
+    expect(app.sessions.first.exercises.single.weightPr, isFalse);
+    expect(
+      app.sessions.first.proposals.where((p) => p.status == 'pending'),
+      isEmpty,
+    );
+  });
 }

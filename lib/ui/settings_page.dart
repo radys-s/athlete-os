@@ -32,7 +32,9 @@ class SettingsPage extends StatelessWidget {
       );
       if (context.mounted && target != null) toast(context, 'Uloženo: $name');
     } catch (error) {
-      if (context.mounted) toast(context, 'Soubor se nepodařilo uložit: $error');
+      if (context.mounted) {
+        toast(context, 'Soubor se nepodařilo uložit: $error');
+      }
     }
   }
 

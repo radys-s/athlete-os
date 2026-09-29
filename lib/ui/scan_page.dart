@@ -26,8 +26,7 @@ class _ScanPageState extends State<ScanPage> {
   Future<void> scan() async {
     if (scanApiUrl.isEmpty || widget.app.user == null) {
       setState(
-        () => error =
-            'Sken vyžaduje nastavený server a přihlášení. Použij hledání cviku.',
+        () => error = 'Sken vyžaduje nastavený server a přihlášení. Použij hledání cviku.',
       );
       return;
     }
@@ -124,7 +123,9 @@ class _ScanPageState extends State<ScanPage> {
           onPressed: () async {
             final id = await Navigator.push<String>(
               context,
-              MaterialPageRoute(builder: (_) => ExercisePicker(app: widget.app)),
+              MaterialPageRoute(
+                builder: (_) => ExercisePicker(app: widget.app),
+              ),
             );
             if (id != null && context.mounted) Navigator.pop(context, id);
           },
