@@ -1,5 +1,5 @@
 // The first successful install caches everything needed to reopen the tracker offline.
-const CACHE = 'athlete-os-shell-v4';
+const CACHE = 'athlete-os-shell-v5';
 const PRECACHE = [
   './', './index.html', './flutter_bootstrap.js', './flutter.js',
   './main.dart.js', './manifest.json', './sqlite3.wasm',
@@ -15,7 +15,7 @@ const PRECACHE = [
 self.addEventListener('install', (event) => {
   event.waitUntil(
     caches.open(CACHE)
-      .then((cache) => cache.addAll(PRECACHE))
+      .then((cache) => Promise.allSettled(PRECACHE.map((url) => cache.add(url))))
       .then(() => self.skipWaiting()),
   );
 });
