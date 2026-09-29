@@ -15,6 +15,9 @@ ProgressionResult evaluateProgression(
   final targets = (exercise['targets'] as List<dynamic>).cast<num>();
   final currentWeight = (exercise['weight'] as num).toDouble();
   final step = (exercise['step'] as num).toDouble();
+  final rangeRule = exercise['ruleType'] == 'repRange';
+  final rangeMax = (exercise['rangeMax'] as num?)?.toInt() ?? 12;
+  final rangeMin = (exercise['rangeMin'] as num?)?.toInt() ?? 8;
   if (currentWeight <= 0) {
     return const ProgressionResult(
       false,
@@ -38,17 +41,27 @@ ProgressionResult evaluateProgression(
         currentWeight,
       );
     }
-    if ((performed[i]['reps'] as num) < targets[i]) {
+    final goal = rangeRule ? rangeMax : targets[i];
+    if ((performed[i]['reps'] as num) < goal) {
+      if (rangeRule && (performed[i]['reps'] as num) >= rangeMin) {
+        return ProgressionResult(
+          false,
+          'Série ${i + 1} je v rozsahu $rangeMin–$rangeMax. Zatím ponechat váhu.',
+          currentWeight,
+        );
+      }
       return ProgressionResult(
         false,
-        'Série ${i + 1}: ${performed[i]['reps']} z cílových ${targets[i]} opakování. Ponechat současný cíl.',
+        'Série ${i + 1}: ${performed[i]['reps']} z cílových $goal opakování. Ponechat současný cíl.',
         currentWeight,
       );
     }
   }
   return ProgressionResult(
     true,
-    'Splnil jsi všech ${targets.length} cílových sérií. Pravidlo navrhuje přidat ${step.toStringAsFixed(1)} kg.',
+    rangeRule
+        ? 'Všechny série dosáhly horní hranice $rangeMax opakování. Pravidlo navrhuje přidat ${step.toStringAsFixed(1)} kg.'
+        : 'Splnil jsi všech ${targets.length} cílových sérií. Pravidlo navrhuje přidat ${step.toStringAsFixed(1)} kg.',
     currentWeight + step,
   );
 }

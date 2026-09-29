@@ -84,8 +84,8 @@ class _AppShellState extends State<AppShell> {
                 ),
             ],
           ),
-          body: SafeArea(child: pages[tab]),
-          bottomNavigationBar: NavigationBar(
+          body: SafeArea(child: app.locked ? LockedPage(app) : pages[tab]),
+          bottomNavigationBar: app.locked ? null : NavigationBar(
             selectedIndex: tab,
             onDestinationSelected: (value) => setState(() => tab = value),
             destinations: const [
@@ -108,6 +108,68 @@ class _AppShellState extends State<AppShell> {
       },
     );
   }
+}
+
+class LockedPage extends StatefulWidget {
+  final AppController app;
+  const LockedPage(this.app, {super.key});
+
+  @override
+  State<LockedPage> createState() => _LockedPageState();
+}
+
+class _LockedPageState extends State<LockedPage> {
+  final email = TextEditingController();
+  final code = TextEditingController();
+  bool sent = false;
+  bool busy = false;
+  String? error;
+
+  @override
+  void dispose() {
+    email.dispose();
+    code.dispose();
+    super.dispose();
+  }
+
+  Future<void> submit() async {
+    setState(() { busy = true; error = null; });
+    try {
+      if (sent) {
+        await widget.app.verifyEmailCode(email.text.trim(), code.text.trim());
+      } else {
+        await widget.app.signIn(email.text.trim());
+        if (mounted) setState(() => sent = true);
+      }
+    } catch (e) {
+      if (mounted) setState(() => error = 'Přihlášení selhalo: $e');
+    } finally {
+      if (mounted) setState(() => busy = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) => Center(child: ConstrainedBox(
+    constraints: const BoxConstraints(maxWidth: 420),
+    child: ListView(shrinkWrap: true, padding: const EdgeInsets.all(24), children: [
+      const Icon(Icons.lock_outline, size: 54),
+      const SizedBox(height: 16),
+      Text('Data tohoto účtu jsou zamčená',
+        textAlign: TextAlign.center, style: Theme.of(context).textTheme.headlineSmall),
+      const SizedBox(height: 8),
+      const Text('Přihlas se ke stejnému účtu. Historie zůstává uložená na zařízení.',
+        textAlign: TextAlign.center),
+      const SizedBox(height: 20),
+      TextField(controller: email, keyboardType: TextInputType.emailAddress,
+        decoration: const InputDecoration(labelText: 'E-mail')),
+      if (sent) TextField(controller: code, keyboardType: TextInputType.number,
+        decoration: const InputDecoration(labelText: 'Kód z e-mailu')),
+      if (error != null) Text(error!, style: TextStyle(color: Theme.of(context).colorScheme.error)),
+      const SizedBox(height: 12),
+      FilledButton(onPressed: busy || !CloudSync.configured ? null : submit,
+        child: Text(sent ? 'Ověřit kód' : 'Poslat kód')),
+    ]),
+  ));
 }
 
 class PlansPage extends StatelessWidget {
@@ -180,6 +242,42 @@ class PlansPage extends StatelessWidget {
                       ),
                       icon: const Icon(Icons.edit_outlined),
                     ),
+                    PopupMenuButton<String>(
+                      tooltip: 'Další akce s plánem',
+                      onSelected: (action) async {
+                        if (action == 'copy') {
+                          await app.duplicatePlan(plan);
+                        } else {
+                          final confirmed = await showDialog<bool>(
+                            context: context,
+                            builder: (ctx) => AlertDialog(
+                              title: const Text('Archivovat plán?'),
+                              content: const Text(
+                                'Historie tréninků zůstane zachována.',
+                              ),
+                              actions: [
+                                TextButton(
+                                  onPressed: () => Navigator.pop(ctx, false),
+                                  child: const Text('Zpět'),
+                                ),
+                                FilledButton(
+                                  onPressed: () => Navigator.pop(ctx, true),
+                                  child: const Text('Archivovat'),
+                                ),
+                              ],
+                            ),
+                          );
+                          if (confirmed == true) await app.archivePlan(plan);
+                        }
+                      },
+                      itemBuilder: (_) => const [
+                        PopupMenuItem(value: 'copy', child: Text('Kopírovat')),
+                        PopupMenuItem(
+                          value: 'archive',
+                          child: Text('Archivovat'),
+                        ),
+                      ],
+                    ),
                   ],
                 ),
               ],
@@ -240,6 +338,9 @@ class _PlanEditorState extends State<PlanEditor> {
       'targets': [12, 10, 8],
       'weight': 0.0,
       'step': 2.5,
+      'ruleType': 'fixed',
+      'rangeMin': 8,
+      'rangeMax': 12,
     });
     setState(() => plan['exercises'] = items);
   }
@@ -259,6 +360,7 @@ class _PlanEditorState extends State<PlanEditor> {
           const SizedBox(height: 18),
           for (var i = 0; i < items.length; i++)
             Card(
+              key: ValueKey(items[i]['exerciseId']),
               child: Padding(
                 padding: const EdgeInsets.all(14),
                 child: Column(
@@ -276,6 +378,28 @@ class _PlanEditorState extends State<PlanEditor> {
                           ),
                         ),
                         IconButton(
+                          tooltip: 'Posunout nahoru',
+                          onPressed: i == 0
+                              ? null
+                              : () {
+                                  final moved = items.removeAt(i);
+                                  items.insert(i - 1, moved);
+                                  setState(() => plan['exercises'] = items);
+                                },
+                          icon: const Icon(Icons.arrow_upward),
+                        ),
+                        IconButton(
+                          tooltip: 'Posunout dolů',
+                          onPressed: i == items.length - 1
+                              ? null
+                              : () {
+                                  final moved = items.removeAt(i);
+                                  items.insert(i + 1, moved);
+                                  setState(() => plan['exercises'] = items);
+                                },
+                          icon: const Icon(Icons.arrow_downward),
+                        ),
+                        IconButton(
                           onPressed: () {
                             items.removeAt(i);
                             setState(() => plan['exercises'] = items);
@@ -284,9 +408,97 @@ class _PlanEditorState extends State<PlanEditor> {
                         ),
                       ],
                     ),
+                    DropdownButtonFormField<String>(
+                      initialValue: items[i]['ruleType'] as String? ?? 'fixed',
+                      decoration: const InputDecoration(
+                        labelText: 'Pravidlo progrese',
+                      ),
+                      items: const [
+                        DropdownMenuItem(
+                          value: 'fixed',
+                          child: Text('Pevné cíle sérií'),
+                        ),
+                        DropdownMenuItem(
+                          value: 'repRange',
+                          child: Text('Rozsah opakování'),
+                        ),
+                      ],
+                      onChanged: (value) => setState(() {
+                        items[i]['ruleType'] = value;
+                        if (value == 'repRange') {
+                          items[i]['targets'] = List<int>.filled(
+                            (items[i]['targets'] as List).length,
+                            (items[i]['rangeMax'] as num?)?.toInt() ?? 12,
+                          );
+                        }
+                        plan['exercises'] = items;
+                      }),
+                    ),
                     Text(
                       'Cíle: ${(items[i]['targets'] as List).join(' / ')} opakování',
                     ),
+                    Row(
+                      children: [
+                        Text(
+                          'Počet sérií: ${(items[i]['targets'] as List).length}',
+                        ),
+                        IconButton(
+                          tooltip: 'Odebrat sérii',
+                          onPressed: (items[i]['targets'] as List).length <= 1
+                              ? null
+                              : () => setState(() {
+                                  (items[i]['targets'] as List).removeLast();
+                                  plan['exercises'] = items;
+                                }),
+                          icon: const Icon(Icons.remove_circle_outline),
+                        ),
+                        IconButton(
+                          tooltip: 'Přidat sérii',
+                          onPressed: () => setState(() {
+                            final targets = items[i]['targets'] as List;
+                            targets.add(targets.last);
+                            plan['exercises'] = items;
+                          }),
+                          icon: const Icon(Icons.add_circle_outline),
+                        ),
+                      ],
+                    ),
+                    if (items[i]['ruleType'] == 'repRange')
+                      Wrap(
+                        spacing: 12,
+                        children: [
+                          SizedBox(
+                            width: 125,
+                            child: TextFormField(
+                              initialValue: '${items[i]['rangeMin'] ?? 8}',
+                              keyboardType: TextInputType.number,
+                              decoration: const InputDecoration(
+                                labelText: 'Od opakování',
+                              ),
+                              onChanged: (v) =>
+                                  items[i]['rangeMin'] = int.tryParse(v) ?? 0,
+                            ),
+                          ),
+                          SizedBox(
+                            width: 125,
+                            child: TextFormField(
+                              initialValue: '${items[i]['rangeMax'] ?? 12}',
+                              keyboardType: TextInputType.number,
+                              decoration: const InputDecoration(
+                                labelText: 'Do opakování',
+                              ),
+                              onChanged: (v) {
+                                final value = int.tryParse(v) ?? 0;
+                                items[i]['rangeMax'] = value;
+                                items[i]['targets'] = List<int>.filled(
+                                  (items[i]['targets'] as List).length,
+                                  value,
+                                );
+                              },
+                            ),
+                          ),
+                        ],
+                      ),
                     Wrap(
                       spacing: 12,
                       children: [
@@ -326,23 +538,24 @@ class _PlanEditorState extends State<PlanEditor> {
                         ),
                       ],
                     ),
-                    TextFormField(
-                      initialValue: (items[i]['targets'] as List).join(', '),
-                      decoration: const InputDecoration(
-                        labelText: 'Cíle sérií (např. 12, 10, 8)',
+                    if (items[i]['ruleType'] != 'repRange')
+                      TextFormField(
+                        initialValue: (items[i]['targets'] as List).join(', '),
+                        decoration: const InputDecoration(
+                          labelText: 'Cíle sérií (např. 12, 10, 8)',
+                        ),
+                        onChanged: (value) {
+                          final targets = value
+                              .split(',')
+                              .map((s) => int.tryParse(s.trim()))
+                              .toList();
+                          if (targets.isNotEmpty &&
+                              targets.every((n) => n != null && n > 0)) {
+                            items[i]['targets'] = targets.cast<int>();
+                            plan['exercises'] = items;
+                          }
+                        },
                       ),
-                      onChanged: (value) {
-                        final targets = value
-                            .split(',')
-                            .map((s) => int.tryParse(s.trim()))
-                            .toList();
-                        if (targets.isNotEmpty &&
-                            targets.every((n) => n != null && n > 0)) {
-                          items[i]['targets'] = targets.cast<int>();
-                          plan['exercises'] = items;
-                        }
-                      },
-                    ),
                   ],
                 ),
               ),
@@ -361,7 +574,13 @@ class _PlanEditorState extends State<PlanEditor> {
                     (item) =>
                         (item['targets'] as List).isEmpty ||
                         (item['step'] as num) <= 0 ||
-                        (item['weight'] as num) < 0,
+                        (item['weight'] as num) < 0 ||
+                        (item['ruleType'] == 'repRange' &&
+                            ((item['rangeMin'] as num?) == null ||
+                                (item['rangeMax'] as num?) == null ||
+                                (item['rangeMin'] as num) < 1 ||
+                                (item['rangeMax'] as num) <
+                                    (item['rangeMin'] as num))),
                   )) {
                 ScaffoldMessenger.of(context).showSnackBar(
                   const SnackBar(
@@ -394,6 +613,30 @@ class _WorkoutPageState extends State<WorkoutPage> {
   Timer? ticker;
   DateTime? restEnd;
   int restSeconds = 90;
+  bool finishing = false;
+  @override
+  void initState() {
+    super.initState();
+    final workout = widget.app.active;
+    restSeconds = (workout?['restSeconds'] as num?)?.toInt() ?? 90;
+    restEnd = DateTime.tryParse(workout?['restEnd'] as String? ?? '');
+    if (restEnd != null) _startTicker();
+  }
+
+  void _startTicker() {
+    ticker?.cancel();
+    ticker = Timer.periodic(const Duration(seconds: 1), (_) {
+      if (!mounted) return;
+      if (restEnd != null && DateTime.now().isAfter(restEnd!)) {
+        restEnd = null;
+        widget.app.active?.remove('restEnd');
+        unawaited(widget.app.saveActive());
+        ticker?.cancel();
+      }
+      setState(() {});
+    });
+  }
+
   @override
   void dispose() {
     ticker?.cancel();
@@ -402,16 +645,10 @@ class _WorkoutPageState extends State<WorkoutPage> {
 
   void startRest() {
     restEnd = DateTime.now().add(Duration(seconds: restSeconds));
-    ticker?.cancel();
-    ticker = Timer.periodic(const Duration(seconds: 1), (_) {
-      if (!mounted) return;
-      setState(() {
-        if (DateTime.now().isAfter(restEnd!)) {
-          restEnd = null;
-          ticker?.cancel();
-        }
-      });
-    });
+    widget.app.active?['restEnd'] = restEnd!.toIso8601String();
+    widget.app.active?['restSeconds'] = restSeconds;
+    unawaited(widget.app.saveActive());
+    _startTicker();
     setState(() {});
   }
 
@@ -593,61 +830,81 @@ class _WorkoutPageState extends State<WorkoutPage> {
           ),
         const SizedBox(height: 12),
         FilledButton.icon(
-          onPressed: () async {
-            final invalid = exercises
-                .expand((e) => asMaps(e['sets']))
-                .where((s) => s['done'] == true)
-                .any(
-                  (s) =>
-                      (s['reps'] as num) < 1 ||
-                      (s['weight'] as num) < 0 ||
-                      (s['rir'] != null &&
-                          ((s['rir'] as num) < 0 || (s['rir'] as num) > 10)),
-                );
-            if (invalid) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text(
-                    'Oprav opakování, váhu nebo RIR u dokončené série.',
-                  ),
-                ),
-              );
-              return;
-            }
-            final incomplete = exercises
-                .expand((e) => asMaps(e['sets']))
-                .any((s) => s['done'] != true);
-            if (incomplete) {
-              final proceed = await showDialog<bool>(
-                context: context,
-                builder: (ctx) => AlertDialog(
-                  title: const Text('Nedokončené série'),
-                  content: const Text(
-                    'Dokončit trénink i s nedokončenými sériemi?',
-                  ),
-                  actions: [
-                    TextButton(
-                      onPressed: () => Navigator.pop(ctx, false),
-                      child: const Text('Zpět'),
-                    ),
-                    FilledButton(
-                      onPressed: () => Navigator.pop(ctx, true),
-                      child: const Text('Dokončit'),
-                    ),
-                  ],
-                ),
-              );
-              if (proceed != true) return;
-            }
-            await widget.app.finish();
-            if (context.mounted) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('Trénink uložen. Návrhy najdeš v historii.'),
-                ),
-              );
-            }
-          },
+          onPressed: finishing
+              ? null
+              : () async {
+                  setState(() => finishing = true);
+                  try {
+                    final invalid = exercises
+                        .expand((e) => asMaps(e['sets']))
+                        .where((s) => s['done'] == true)
+                        .any(
+                          (s) =>
+                              (s['reps'] as num) < 1 ||
+                              (s['weight'] as num) < 0 ||
+                              (s['rir'] != null &&
+                                  ((s['rir'] as num) < 0 ||
+                                      (s['rir'] as num) > 10)),
+                        );
+                    if (invalid) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text(
+                            'Oprav opakování, váhu nebo RIR u dokončené série.',
+                          ),
+                        ),
+                      );
+                      return;
+                    }
+                    final incomplete = exercises
+                        .expand((e) => asMaps(e['sets']))
+                        .any((s) => s['done'] != true);
+                    if (incomplete) {
+                      final proceed = await showDialog<bool>(
+                        context: context,
+                        builder: (ctx) => AlertDialog(
+                          title: const Text('Nedokončené série'),
+                          content: const Text(
+                            'Dokončit trénink i s nedokončenými sériemi?',
+                          ),
+                          actions: [
+                            TextButton(
+                              onPressed: () => Navigator.pop(ctx, false),
+                              child: const Text('Zpět'),
+                            ),
+                            FilledButton(
+                              onPressed: () => Navigator.pop(ctx, true),
+                              child: const Text('Dokončit'),
+                            ),
+                          ],
+                        ),
+                      );
+                      if (proceed != true) return;
+                    }
+                    await widget.app.finish();
+                    if (context.mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text(
+                            'Trénink uložen. Návrhy najdeš v historii.',
+                          ),
+                        ),
+                      );
+                    }
+                  } catch (error) {
+                    if (context.mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text(
+                            'Trénink se nepodařilo dokončit: $error',
+                          ),
+                        ),
+                      );
+                    }
+                  } finally {
+                    if (mounted) setState(() => finishing = false);
+                  }
+                },
           icon: const Icon(Icons.check),
           label: const Text('Dokončit trénink'),
         ),
@@ -783,9 +1040,39 @@ class HistoryPage extends StatelessWidget {
                           ),
                       const SizedBox(height: 8),
                       OutlinedButton.icon(
-                        onPressed: () => app.startFromSession(session),
+                        onPressed: app.active != null
+                            ? null
+                            : () => app.startFromSession(session),
                         icon: const Icon(Icons.replay),
                         label: const Text('Zopakovat trénink'),
+                      ),
+                      TextButton.icon(
+                        onPressed: () async {
+                          final confirmed = await showDialog<bool>(
+                            context: context,
+                            builder: (ctx) => AlertDialog(
+                              title: const Text('Smazat trénink?'),
+                              content: const Text(
+                                'Záznam se odstraní také ze synchronizovaných zařízení.',
+                              ),
+                              actions: [
+                                TextButton(
+                                  onPressed: () => Navigator.pop(ctx, false),
+                                  child: const Text('Zpět'),
+                                ),
+                                FilledButton(
+                                  onPressed: () => Navigator.pop(ctx, true),
+                                  child: const Text('Smazat'),
+                                ),
+                              ],
+                            ),
+                          );
+                          if (confirmed == true) {
+                            await app.deleteSession(session['id'] as String);
+                          }
+                        },
+                        icon: const Icon(Icons.delete_outline),
+                        label: const Text('Smazat záznam'),
                       ),
                     ],
                   ),
@@ -969,7 +1256,13 @@ class _ScanPageState extends State<ScanPage> {
       );
       request.headers['Authorization'] =
           'Bearer ${Supabase.instance.client.auth.currentSession?.accessToken ?? ''}';
-      request.files.add(await http.MultipartFile.fromPath('photo', photo.path));
+      request.files.add(
+        http.MultipartFile.fromBytes(
+          'photo',
+          await photo.readAsBytes(),
+          filename: photo.name,
+        ),
+      );
       final response = await http.Response.fromStream(await request.send());
       if (response.statusCode != 200) {
         throw Exception('Server vrátil ${response.statusCode}');
@@ -1128,6 +1421,26 @@ class SettingsPage extends StatelessWidget {
         ),
       if (app.user != null) ...[
         Text(app.user!.email ?? 'Přihlášený uživatel'),
+        if (app.pendingImport) ...[
+          const Text('Na zařízení už jsou tréninky. Potvrď jejich přidání k tomuto účtu.'),
+          FilledButton(
+            onPressed: () async {
+              final confirmed = await showDialog<bool>(context: context,
+                builder: (ctx) => AlertDialog(
+                  title: const Text('Přidat místní tréninky k účtu?'),
+                  content: const Text('Po potvrzení se tyto záznamy zálohují a synchronizují.'),
+                  actions: [
+                    TextButton(onPressed: () => Navigator.pop(ctx, false),
+                      child: const Text('Zpět')),
+                    FilledButton(onPressed: () => Navigator.pop(ctx, true),
+                      child: const Text('Přidat')),
+                  ],
+                ));
+              if (confirmed == true) await app.confirmImport();
+            },
+            child: const Text('Přidat místní data k účtu'),
+          ),
+        ],
         FilledButton.tonal(
           onPressed: app.sync,
           child: const Text('Synchronizovat'),

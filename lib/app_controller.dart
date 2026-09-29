@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/widgets.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -18,6 +19,8 @@ class AppController extends ChangeNotifier with WidgetsBindingObserver {
   String mode = 'Standard';
   String layout = 'Přehledný';
   bool ready = false;
+  bool locked = false;
+  bool pendingImport = false;
   String? syncError;
   StreamSubscription<AuthState>? _authSubscription;
   Timer? _syncTimer;
@@ -26,6 +29,7 @@ class AppController extends ChangeNotifier with WidgetsBindingObserver {
 
   Future<void> initialize() async {
     await store.open();
+    await _refreshAccountState();
     await reload();
     if (CloudSync.configured) {
       WidgetsBinding.instance.addObserver(this);
@@ -35,8 +39,7 @@ class AppController extends ChangeNotifier with WidgetsBindingObserver {
       );
       _authSubscription = Supabase.instance.client.auth.onAuthStateChange
           .listen((event) {
-            if (event.session != null) unawaited(sync());
-            notifyListeners();
+            unawaited(_refreshAccountState());
           });
     }
     ready = true;
@@ -45,7 +48,9 @@ class AppController extends ChangeNotifier with WidgetsBindingObserver {
   }
 
   Future<void> reload() async {
-    plans = await store.all('plan');
+    plans = (await store.all('plan'))
+        .where((plan) => plan['archived'] != true)
+        .toList();
     sessions = await store.all('session');
     customExercises = await store.all('exercise');
     final activeSessions = await store.all('active');
@@ -57,6 +62,7 @@ class AppController extends ChangeNotifier with WidgetsBindingObserver {
   }
 
   Future<void> sync() async {
+    if (locked || pendingImport) return;
     if (_syncing) {
       _syncRequested = true;
       return;
@@ -78,6 +84,25 @@ class AppController extends ChangeNotifier with WidgetsBindingObserver {
     } while (_syncRequested);
     _syncing = false;
     notifyListeners();
+  }
+
+  Future<void> _refreshAccountState() async {
+    final owner = await store.accountOwner();
+    final currentId = user?.id;
+    locked = owner != null && owner != currentId;
+    pendingImport = !locked && owner == null && currentId != null &&
+        await store.hasWorkoutData();
+    notifyListeners();
+    if (!locked && !pendingImport && currentId != null) unawaited(sync());
+  }
+
+  Future<void> confirmImport() async {
+    final currentId = user?.id;
+    if (currentId == null) throw StateError('Nejdřív se přihlas.');
+    await store.bindAccount(currentId);
+    pendingImport = false;
+    notifyListeners();
+    await sync();
   }
 
   Future<void> setPreferences({String? newMode, String? newLayout}) async {
@@ -108,12 +133,39 @@ class AppController extends ChangeNotifier with WidgetsBindingObserver {
     unawaited(sync());
   }
 
+  Future<void> duplicatePlan(Map<String, dynamic> plan) async {
+    final copy = deepCopy(plan);
+    copy['id'] = store.newId();
+    copy['name'] = '${plan['name']} – kopie';
+    copy['archived'] = false;
+    await savePlan(copy);
+  }
+
+  Future<void> archivePlan(Map<String, dynamic> plan) async {
+    final copy = deepCopy(plan);
+    copy['archived'] = true;
+    await savePlan(copy);
+  }
+
+  Future<void> deleteSession(String id) async {
+    await store.remove(id);
+    await reload();
+    unawaited(sync());
+  }
+
   Future<void> startPlan(Map<String, dynamic> plan) async {
+    if (active != null) throw StateError('Nejdřív dokonči rozepsaný trénink.');
     final exercises = asMaps(plan['exercises']).map((item) {
-      final targets = (item['targets'] as List<dynamic>).cast<num>();
+      final targets = item['ruleType'] == 'repRange'
+          ? List<num>.filled(
+              (item['targets'] as List).length,
+              (item['rangeMax'] as num?)?.toInt() ?? 12,
+            )
+          : (item['targets'] as List<dynamic>).cast<num>();
       return {
         'exerciseId': item['exerciseId'],
         'targets': targets,
+        'rule': deepCopy(item),
         'sets': targets
             .map(
               (reps) => {
@@ -139,11 +191,7 @@ class AppController extends ChangeNotifier with WidgetsBindingObserver {
   }
 
   Future<void> startFromSession(Map<String, dynamic> session) async {
-    final plan = await store.get(session['planId'] as String);
-    if (plan != null) {
-      await startPlan(plan);
-      return;
-    }
+    if (active != null) throw StateError('Nejdřív dokonči rozepsaný trénink.');
     final exercises = asMaps(session['exercises']).map((item) {
       final sets = asMaps(item['sets'])
           .map(
@@ -159,6 +207,7 @@ class AppController extends ChangeNotifier with WidgetsBindingObserver {
       return {
         'exerciseId': item['exerciseId'],
         'targets': sets.map((s) => s['target']).toList(),
+        if (item['rule'] != null) 'rule': item['rule'],
         'sets': sets,
       };
     }).toList();
@@ -191,12 +240,16 @@ class AppController extends ChangeNotifier with WidgetsBindingObserver {
             .where((p) => p['exerciseId'] == exercise['exerciseId'])
             .firstOrNull;
         if (item == null) continue;
-        final result = evaluateProgression(item, asMaps(exercise['sets']));
+        final rule = exercise['rule'] is Map
+            ? Map<String, dynamic>.from(exercise['rule'] as Map)
+            : item;
+        final result = evaluateProgression(rule, asMaps(exercise['sets']));
         proposals.add({
           'id': store.newId(),
           'exerciseId': exercise['exerciseId'],
           'planId': plan['id'],
           'currentWeight': item['weight'],
+          'ruleWeight': rule['weight'],
           'suggestedWeight': result.suggestedWeight,
           'eligible': result.completed,
           'reason': result.reason,
@@ -225,8 +278,7 @@ class AppController extends ChangeNotifier with WidgetsBindingObserver {
       exercise['weightPr'] = currentBest > 0 && currentBest > previousBest;
     }
     completed['exercises'] = completedExercises;
-    await store.put('session', completed);
-    await store.remove(workout['id'] as String);
+    await store.finishWorkout(workout, completed);
     active = null;
     await reload();
     unawaited(sync());
@@ -254,6 +306,11 @@ class AppController extends ChangeNotifier with WidgetsBindingObserver {
             .where((e) => e['exerciseId'] == proposal['exerciseId'])
             .firstOrNull;
         if (exercise != null) {
+          if (exercise['weight'] != proposal['ruleWeight']) {
+            throw StateError(
+              'Cíl cviku se mezitím změnil. Návrh už není aktuální.',
+            );
+          }
           exercise['weight'] = chosenWeight ?? proposal['suggestedWeight'];
           plan['exercises'] = exercises;
           await store.put('plan', plan);
@@ -274,12 +331,20 @@ class AppController extends ChangeNotifier with WidgetsBindingObserver {
     if (!CloudSync.configured) throw StateError('Cloud není nakonfigurován.');
     await Supabase.instance.client.auth.signInWithOtp(
       email: email,
-      emailRedirectTo: 'athleteos://login-callback/',
+      emailRedirectTo: kIsWeb ? Uri.base.origin : 'athleteos://login-callback/',
+    );
+  }
+
+  Future<void> verifyEmailCode(String email, String code) async {
+    if (!CloudSync.configured) throw StateError('Cloud není nakonfigurován.');
+    await Supabase.instance.client.auth.verifyOTP(
+      email: email, token: code, type: OtpType.email,
     );
   }
 
   Future<void> signOut() async {
     if (CloudSync.configured) await Supabase.instance.client.auth.signOut();
+    locked = await store.accountOwner() != null;
     notifyListeners();
   }
 

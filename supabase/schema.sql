@@ -13,12 +13,8 @@ alter table public.user_entities enable row level security;
 
 create policy "owner can select" on public.user_entities for select to authenticated
   using (auth.uid() = user_id);
-create policy "owner can insert" on public.user_entities for insert to authenticated
-  with check (auth.uid() = user_id);
-create policy "owner can update" on public.user_entities for update to authenticated
-  using (auth.uid() = user_id) with check (auth.uid() = user_id);
-create policy "owner can delete" on public.user_entities for delete to authenticated
-  using (auth.uid() = user_id);
+-- All writes go through push_entity to preserve compare-and-swap revisions.
+revoke insert, update, delete on public.user_entities from anon, authenticated;
 
 create index if not exists user_entities_kind on public.user_entities(user_id, kind);
 
@@ -59,3 +55,28 @@ end $$;
 
 revoke all on function public.push_entity(text,text,jsonb,boolean,bigint) from public;
 grant execute on function public.push_entity(text,text,jsonb,boolean,bigint) to authenticated;
+
+create table if not exists public.scan_daily_usage (
+  user_id uuid not null references auth.users(id) on delete cascade,
+  day date not null,
+  scans integer not null check (scans between 0 and 20),
+  primary key (user_id, day)
+);
+alter table public.scan_daily_usage enable row level security;
+revoke all on public.scan_daily_usage from anon, authenticated;
+
+create or replace function public.claim_scan() returns boolean
+language plpgsql security definer set search_path = public as $$
+declare claimed integer;
+begin
+  if auth.uid() is null then raise exception 'Authentication required'; end if;
+  insert into public.scan_daily_usage(user_id, day, scans)
+    values (auth.uid(), (now() at time zone 'UTC')::date, 1)
+    on conflict (user_id, day) do update
+      set scans = public.scan_daily_usage.scans + 1
+      where public.scan_daily_usage.scans < 20
+    returning scans into claimed;
+  return claimed is not null;
+end $$;
+revoke all on function public.claim_scan() from public;
+grant execute on function public.claim_scan() to authenticated;

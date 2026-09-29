@@ -6,20 +6,20 @@ import base64
 import json
 import os
 import re
-import time
-from collections import defaultdict, deque
 from pathlib import Path
 
 import httpx
 from fastapi import FastAPI, File, Header, HTTPException, UploadFile
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
 CATALOG = json.loads((Path(__file__).resolve().parent.parent / "catalog" / "exercises.json").read_text(encoding="utf-8"))
 CATALOG_IDS = {item["id"] for item in CATALOG}
 MAX_IMAGE_BYTES = 4 * 1024 * 1024
-RATE_LIMIT = 20
-REQUESTS: dict[str, deque[float]] = defaultdict(deque)
 app = FastAPI(title="Athlete OS Machine Scan", docs_url=None, redoc_url=None)
+app.add_middleware(CORSMiddleware,
+    allow_origins=[origin.strip() for origin in os.environ.get("SCAN_ALLOWED_ORIGINS", "").split(",") if origin.strip()],
+    allow_methods=["POST"], allow_headers=["Authorization", "Content-Type"])
 
 
 class ScanResult(BaseModel):
@@ -65,14 +65,18 @@ async def authenticate(token: str, client: httpx.AsyncClient) -> str:
     return user_id
 
 
-def apply_rate_limit(user_id: str) -> None:
-    now = time.monotonic()
-    times = REQUESTS[user_id]
-    while times and now - times[0] > 86400:
-        times.popleft()
-    if len(times) >= RATE_LIMIT:
+async def claim_scan(token: str, client: httpx.AsyncClient) -> None:
+    url = os.environ["SUPABASE_URL"].rstrip("/")
+    key = os.environ["SUPABASE_PUBLISHABLE_KEY"]
+    try:
+        response = await client.post(f"{url}/rest/v1/rpc/claim_scan", headers={
+            "apikey": key, "Authorization": f"Bearer {token}"}, json={}, timeout=10)
+    except httpx.HTTPError as exc:
+        raise HTTPException(503, "Scan quota unavailable") from exc
+    if response.status_code != 200:
+        raise HTTPException(503, "Scan quota unavailable")
+    if response.json() is not True:
         raise HTTPException(429, "Daily scan limit reached")
-    times.append(now)
 
 
 @app.post("/v1/machine-scan", response_model=ScanResult)
@@ -95,8 +99,8 @@ async def machine_scan(photo: UploadFile = File(...), authorization: str | None 
     if not api_key:
         raise HTTPException(503, "Vision provider is not configured")
     async with httpx.AsyncClient() as client:
-        user_id = await authenticate(authorization[7:], client)
-        apply_rate_limit(user_id)
+        await authenticate(authorization[7:], client)
+        await claim_scan(authorization[7:], client)
         image_url = f"data:{mime};base64,{base64.b64encode(image).decode()}"
         prompt = (
             "Identify the exercise machine in the photo. Reply with JSON only: "

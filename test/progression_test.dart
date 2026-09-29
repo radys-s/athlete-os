@@ -61,6 +61,32 @@ void main() {
     expect(result.completed, isFalse);
     expect(result.suggestedWeight, 0);
   });
+  test(
+    'rep range raises weight only after every set reaches its upper bound',
+    () {
+      final rule = <String, dynamic>{
+        'targets': [12, 12, 12],
+        'weight': 40.0,
+        'step': 2.5,
+        'ruleType': 'repRange',
+        'rangeMin': 8,
+        'rangeMax': 12,
+      };
+      final near = evaluateProgression(rule, [
+        {'done': true, 'reps': 12, 'weight': 40},
+        {'done': true, 'reps': 11, 'weight': 40},
+        {'done': true, 'reps': 12, 'weight': 40},
+      ]);
+      expect(near.completed, isFalse);
+      expect(near.reason, contains('v rozsahu'));
+      final reached = evaluateProgression(rule, [
+        {'done': true, 'reps': 12, 'weight': 40},
+        {'done': true, 'reps': 12, 'weight': 40},
+        {'done': true, 'reps': 12, 'weight': 40},
+      ]);
+      expect(reached.suggestedWeight, 42.5);
+    },
+  );
   test('one rep max estimate is withheld outside the supported range', () {
     expect(estimatedOneRepMax(100, 5), closeTo(116.67, .01));
     expect(estimatedOneRepMax(100, 15), isNull);
