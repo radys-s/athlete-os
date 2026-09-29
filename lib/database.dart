@@ -34,4 +34,13 @@ class AthleteDatabase extends _$AthleteDatabase {
 
   @override
   int get schemaVersion => 1;
+
+  @override
+  MigrationStrategy get migration => MigrationStrategy(
+    beforeOpen: (details) async {
+      await customStatement(
+        'CREATE INDEX IF NOT EXISTS entities_kind ON entities(kind)',
+      );
+    },
+  );
 }

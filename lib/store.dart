@@ -29,8 +29,8 @@ class LocalStore {
         INSERT INTO entities(id,kind,payload,updated_at,dirty,deleted,conflict,remote_revision)
         VALUES(?,?,?,?,?,?,?,?)
         ON CONFLICT(id) DO UPDATE SET kind=excluded.kind,payload=excluded.payload,
-          updated_at=excluded.updated_at,dirty=excluded.dirty,deleted=0,conflict=0,
-          remote_revision=excluded.remote_revision
+          updated_at=excluded.updated_at,dirty=excluded.dirty,deleted=0,
+          conflict=entities.conflict,remote_revision=excluded.remote_revision
       ''',
         [
           id,
