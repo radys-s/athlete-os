@@ -32,6 +32,7 @@ class AppController extends ChangeNotifier with WidgetsBindingObserver {
   bool _syncing = false;
   bool _syncRequested = false;
   bool _disposed = false;
+  bool _flushing = false;
 
   Future<void> initialize() async {
     await store.open();
@@ -66,7 +67,7 @@ class AppController extends ChangeNotifier with WidgetsBindingObserver {
     customExercises = await store.all('exercise');
     final activeRows = await store.all('active');
     // Never replace the in-memory workout while edits are waiting to be saved.
-    if (_saveTimer == null) {
+    if (_saveTimer == null && !_flushing) {
       active = activeRows.isEmpty ? null : Workout.fromJson(activeRows.first);
     }
     final settings = await store.get('settings');
@@ -265,7 +266,12 @@ class AppController extends ChangeNotifier with WidgetsBindingObserver {
       activeSaving = false;
       return;
     }
-    await store.put('active', workout.toJson());
+    _flushing = true;
+    try {
+      await store.put('active', workout.toJson());
+    } finally {
+      _flushing = false;
+    }
     if (_saveTimer == null) activeSaving = false;
     notifyListeners();
   }
