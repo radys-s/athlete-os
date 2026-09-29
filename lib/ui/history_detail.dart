@@ -77,6 +77,13 @@ class _HistoryDetailPageState extends State<HistoryDetailPage> {
                       exerciseName(exercise.exerciseId, app.customExercises),
                       style: Theme.of(context).textTheme.titleLarge,
                     ),
+                    TextFormField(
+                      initialValue: exercise.note,
+                      decoration: const InputDecoration(
+                        labelText: 'Poznámka ke cviku',
+                      ),
+                      onChanged: (v) => exercise.note = v,
+                    ),
                     for (var j = 0; j < exercise.sets.length; j++)
                       SetRow(
                         key: ObjectKey(exercise.sets[j]),

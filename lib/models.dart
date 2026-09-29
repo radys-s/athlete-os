@@ -243,6 +243,7 @@ class WorkoutExercise {
   /// later plan edits.
   PlanExercise? rule;
   bool weightPr;
+  String note;
   final Map<String, dynamic> extra;
 
   WorkoutExercise({
@@ -251,10 +252,12 @@ class WorkoutExercise {
     required this.sets,
     this.rule,
     this.weightPr = false,
+    this.note = '',
     Map<String, dynamic>? extra,
   }) : extra = extra ?? {};
 
   static const _known = {
+    'note',
     'exerciseId',
     'planExerciseId',
     'sets',
@@ -276,12 +279,14 @@ class WorkoutExercise {
       sets: asMaps(json['sets']).map(WorkoutSet.fromJson).toList(),
       rule: rule,
       weightPr: json['weightPr'] == true,
+      note: json['note'] as String? ?? '',
       extra: _extra(json, _known),
     );
   }
 
   Map<String, dynamic> toJson() => {
     ...extra,
+    if (note.trim().isNotEmpty) 'note': note,
     'exerciseId': exerciseId,
     if (planExerciseId != null) 'planExerciseId': planExerciseId,
     'targets': sets.map((s) => s.target).toList(),

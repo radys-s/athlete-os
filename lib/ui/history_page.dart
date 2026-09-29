@@ -86,7 +86,8 @@ class _SessionCard extends StatelessWidget {
               child: Text(
                 '${exercise.weightPr ? '🏆 PR · ' : ''}'
                 '${exerciseName(exercise.exerciseId, app.customExercises)}: '
-                '${exercise.workSets.where((s) => s.done).map((s) => '${fmtNum(s.weight)} kg × ${s.reps}').join(' · ')}',
+                '${exercise.workSets.where((s) => s.done).map((s) => '${fmtNum(s.weight)} kg × ${s.reps}').join(' · ')}'
+                '${exercise.note.trim().isEmpty ? '' : ' · 📝 ${exercise.note}'}',
               ),
             ),
           if (app.mode != 'Simple')

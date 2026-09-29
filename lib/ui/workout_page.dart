@@ -271,6 +271,15 @@ class _ExerciseCardState extends State<_ExerciseCard> {
                   : 'Minule: ${previous.workSets.where((s) => s.done).map((s) => '${fmtNum(s.weight)} kg × ${s.reps}').join(' · ')}',
             ),
             const SizedBox(height: 8),
+            TextFormField(
+              initialValue: exercise.note,
+              decoration: const InputDecoration(labelText: 'Poznámka ke cviku'),
+              onChanged: (v) {
+                exercise.note = v;
+                app.touchActive();
+              },
+            ),
+            const SizedBox(height: 4),
             for (var j = 0; j < exercise.sets.length; j++)
               SetRow(
                 key: ObjectKey(exercise.sets[j]),
