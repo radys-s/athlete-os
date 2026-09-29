@@ -21,3 +21,9 @@
 Nejdřív souborový export/import a editace historie, pak dokončení aktivního tréninkového toku. Potom ověřený cloud a sken, fyzická PWA/Android zkouška a teprve následně pozvání dalších lidí.
 
 Monetizaci technicky nepředstíráme: beta zůstává zdarma. Offline tracker může být jednorázový nákup nebo bezplatný základ; nákladné cloudové/AI funkce potřebují průběžné financování (předplatné nebo měřené kredity). Konkrétní cenu, hranici premium a obchodní model určí až měření používání a provozních nákladů mimo první malou skupinu.
+
+## Aktualizace (Claude, verze 1.1.0+2)
+
+Přistálo: oprava perzistence webu (Drift na hlavním vlákně + flush po commitu; drift worker se do IndexedDB nedostal), SW upgrade banner a zámek jednoho okna, souborová záloha/obnova a CSV, detail a úprava dokončeného tréninku s přepočtem PR, poznámky ke cvikům, sync přes `RemoteApi` s inkrementálním pull kurzorem `last_pull_at` (7 testů s fake klientem), `supabase/migrations/002_v1_1.sql` (index + `delete_my_account`), smazání účtu a dat v zařízení.
+
+Zbývá: náhrada cviku uprostřed tréninku, typy cviků (bodyweight/assisted/time), supersety, více `active` řádků z různých zařízení, živý test Supabase + skenu, iPhone PWA přes HTTPS, fyzický Android.

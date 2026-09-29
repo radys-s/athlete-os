@@ -27,9 +27,9 @@ void main() {
     );
     final lines = sessionsToCsv([workout], (id) => 'Bench').split('\r\n');
     expect(lines.length, 3);
-    expect(lines.first.startsWith('date,workout,exercise'), isTrue);
+    expect(lines.first.startsWith('date;workout;exercise'), isTrue);
     expect(lines[1], contains('"Push, ""A"""'));
-    expect(lines[1], contains(',warmup,'));
-    expect(lines[2], contains(',80.0,2,1,'));
+    expect(lines[1], contains(';warmup;'));
+    expect(lines[2], contains(';"80,0";2;1;'));
   });
 }

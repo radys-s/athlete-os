@@ -578,6 +578,8 @@ class AppController extends ChangeNotifier with WidgetsBindingObserver {
     activeSaving = false;
     saveError = null;
     active = null;
+    await _writeTail.catchError((Object _) {});
+    await (_syncFuture ?? Future<void>.value()).catchError((Object _) {});
     await store.wipeLocal();
     conflicts = [];
     await reload();

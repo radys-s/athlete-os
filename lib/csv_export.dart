@@ -39,7 +39,7 @@ String sessionsToCsv(
           set.kind,
           set.target,
           set.reps,
-          set.weight,
+          '${set.weight}'.replaceAll('.', ','),
           set.rir,
           set.done ? 1 : 0,
           session.note,
@@ -47,5 +47,5 @@ String sessionsToCsv(
       }
     }
   }
-  return rows.map((row) => row.map(_cell).join(',')).join('\r\n');
+  return rows.map((row) => row.map(_cell).join(';')).join('\r\n');
 }

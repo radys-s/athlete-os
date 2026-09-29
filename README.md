@@ -10,7 +10,13 @@ Mobilní beta gym trackeru. Tréninkové plány, offline zápis sérií, histori
 
 Bez dalších proměnných aplikace ukládá data jen do lokální SQLite databáze telefonu. Data před smazáním aplikace nebo telefonu zálohuj; lokální instalace není náhrada cloudu.
 
-V Nastavení lze ruční JSON zálohu zkopírovat do schránky a obnovit ji v prázdné instalaci. Po zkopírování ji ulož do soukromého souboru; obsah schránky není trvalá záloha a zahrnuje i poznámky k tréninkům.
+V Nastavení lze zálohu uložit do souboru (JSON), obnovit ji ze souboru v prázdné instalaci a exportovat série do CSV (oddělovač `;`, desetinná čárka pro český Excel). Záloha zahrnuje i poznámky. Schránka zůstává jako záložní varianta.
+
+## Web / PWA (iPhone)
+
+`flutter build web --release`, obsah `build/web` nahraj na HTTPS hosting a otevři v Safari → Sdílet → Přidat na plochu. Data jsou v IndexedDB prohlížeče, **nejsou trvalá záloha** – pravidelně ukládej zálohu do souboru. Service worker je network-first: online se načte vždy nová verze (zobrazí se lišta „Nová verze“), offline se otevře poslední stažená. Aplikaci mej otevřenou jen v jednom okně; druhé okno se z bezpečnostních důvodů zablokuje.
+
+Pozor při vývoji: po `flutter build web` restartuj lokální server, jinak servíruje smazanou složku.
 
 ## Účet a synchronizace
 
