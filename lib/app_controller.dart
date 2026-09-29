@@ -225,6 +225,9 @@ class AppController extends ChangeNotifier with WidgetsBindingObserver {
     unawaited(sync());
   }
 
+  double _roundToStep(double value, double step) =>
+      step > 0 ? (value / step).round() * step : value.roundToDouble();
+
   WorkoutSet _newSet(int target, double weight) =>
       WorkoutSet(target: target, reps: target, weight: weight);
 
@@ -247,11 +250,11 @@ class AppController extends ChangeNotifier with WidgetsBindingObserver {
     if (workout.exercises.any((item) => item.exerciseId == exerciseId)) {
       throw StateError('Cvik už je v tomto tréninku.');
     }
-    final previous = sessions
+    final lastWork = sessions
         .expand((session) => session.exercises)
         .where((item) => item.exerciseId == exerciseId)
+        .expand((item) => item.workSets.where((set) => set.done))
         .firstOrNull;
-    final lastWork = previous?.workSets.where((set) => set.done).firstOrNull;
     workout.exercises.add(
       WorkoutExercise(
         exerciseId: exerciseId,
@@ -281,8 +284,10 @@ class AppController extends ChangeNotifier with WidgetsBindingObserver {
               target: 5,
               reps: 5,
               weight: item.weight > 0
-                  ? (item.weight * (i + 1) / (item.warmupSets + 1))
-                        .roundToDouble()
+                  ? _roundToStep(
+                      item.weight * (i + 1) / (item.warmupSets + 1),
+                      item.step,
+                    )
                   : 0,
               kind: 'warmup',
             ),
