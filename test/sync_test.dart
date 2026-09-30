@@ -116,18 +116,31 @@ void main() {
     expect(raw['remote_revision'], 1);
   });
 
-  test('second pull is incremental and uses the cursor with overlap', () async {
-    remote.remoteEdit('p1', {'id': 'p1', 'name': 'One'});
-    await sync.sync();
-    expect(remote.pullSinces.last, isNull); // first sync = full pull
-    expect(await store.meta('last_pull_at'), isNotNull);
+  test(
+    'each pull reconciles all rows even after the cursor advances',
+    () async {
+      remote.remoteEdit('p1', {'id': 'p1', 'name': 'One'});
+      await sync.sync();
+      expect(remote.pullSinces.last, isNull); // first sync = full pull
+      expect(await store.meta('last_pull_at'), isNotNull);
 
-    remote.remoteEdit('p2', {'id': 'p2', 'name': 'Two'});
+      remote.remoteEdit('p2', {'id': 'p2', 'name': 'Two'});
+      await sync.sync();
+      expect(remote.pullSinces.last, isNull);
+      expect(await store.raw('p2'), isNotNull);
+    },
+  );
+
+  test('a late commit older than the previous cursor is not lost', () async {
+    remote.remoteEdit('new', {'id': 'new', 'name': 'New'});
     await sync.sync();
-    final since = DateTime.parse(remote.pullSinces.last!);
-    final cursor = DateTime.parse((await store.meta('last_pull_at'))!);
-    expect(since.isBefore(cursor), isTrue);
-    expect(await store.raw('p2'), isNotNull);
+    remote.remoteEdit('late', {'id': 'late', 'name': 'Late'});
+    remote.rows['late']!['updated_at'] = DateTime.utc(
+      2026,
+      8,
+    ).toIso8601String();
+    await sync.sync();
+    expect((await store.get('late'))!['name'], 'Late');
   });
 
   test('remote edit of a clean row is imported', () async {

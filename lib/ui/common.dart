@@ -6,8 +6,10 @@ String fmtNum(num value) {
   return d == d.roundToDouble() ? d.toStringAsFixed(0) : d.toString();
 }
 
-double? parseNum(String text) =>
-    double.tryParse(text.trim().replaceAll(',', '.'));
+double? parseNum(String text) {
+  final value = double.tryParse(text.trim().replaceAll(',', '.'));
+  return value != null && value.isFinite ? value : null;
+}
 
 void toast(BuildContext context, String message) {
   if (!context.mounted) return;

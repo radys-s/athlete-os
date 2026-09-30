@@ -7,6 +7,8 @@ import 'plans_page.dart';
 import 'progress_page.dart';
 import 'settings_page.dart';
 import 'workout_page.dart';
+import 'onboarding.dart';
+import 'superset_editor.dart';
 
 class AthleteApp extends StatelessWidget {
   final AppController controller;
@@ -17,6 +19,20 @@ class AthleteApp extends StatelessWidget {
     title: 'Athlete OS',
     debugShowCheckedModeBanner: false,
     theme: athleteTheme(),
+    builder: (context, child) => ListenableBuilder(
+      listenable: controller,
+      builder: (_, _) => Stack(
+        children: [
+          Visibility(
+            visible: !controller.locked,
+            maintainState: true,
+            child: child ?? const SizedBox(),
+          ),
+          if (controller.locked)
+            Scaffold(body: SafeArea(child: LockedPage(controller))),
+        ],
+      ),
+    ),
     home: AppShell(controller),
   );
 }
@@ -96,6 +112,32 @@ class _AppShellState extends State<AppShell> {
     return ListenableBuilder(
       listenable: app,
       builder: (context, _) {
+        if (!app.locked && !app.onboardingComplete) return OnboardingPage(app);
+        final focusLayout = app.layout == 'Soustředěný';
+        if (focusLayout && tab == 3) tab = 0;
+        final navigation = NavigationBar(
+          selectedIndex: tab,
+          onDestinationSelected: (value) => setState(() => tab = value),
+          destinations: [
+            const NavigationDestination(
+              icon: Icon(Icons.fitness_center),
+              label: 'Trénink',
+            ),
+            const NavigationDestination(
+              icon: Icon(Icons.history),
+              label: 'Historie',
+            ),
+            const NavigationDestination(
+              icon: Icon(Icons.show_chart),
+              label: 'Progres',
+            ),
+            if (!focusLayout)
+              const NavigationDestination(
+                icon: Icon(Icons.tune),
+                label: 'Nastavení',
+              ),
+          ],
+        );
         final pages = <Widget>[
           app.active == null
               ? PlansPage(app)
@@ -109,6 +151,23 @@ class _AppShellState extends State<AppShell> {
             title: Text(['Trénink', 'Historie', 'Progres', 'Nastavení'][tab]),
             backgroundColor: const Color(0xFF101411),
             actions: [
+              if (focusLayout && !app.locked)
+                IconButton(
+                  tooltip: 'Nastavení',
+                  icon: const Icon(Icons.settings_outlined),
+                  onPressed: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => Scaffold(
+                        appBar: AppBar(title: const Text('Nastavení')),
+                        body: ListenableBuilder(
+                          listenable: app,
+                          builder: (_, _) => SettingsPage(app),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
               if (app.activeSaving)
                 const Padding(
                   padding: EdgeInsets.symmetric(horizontal: 8),
@@ -125,6 +184,49 @@ class _AppShellState extends State<AppShell> {
           body: SafeArea(
             child: Column(
               children: [
+                if (!app.locked && app.layout == 'Detailní') navigation,
+                if (!app.locked && tab == 0 && app.active != null)
+                  ConstrainedBox(
+                    constraints: const BoxConstraints(maxHeight: 160),
+                    child: SingleChildScrollView(
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 16),
+                        child: SupersetEditor(app),
+                      ),
+                    ),
+                  ),
+                if (!app.locked && app.otherActiveWorkouts.isNotEmpty)
+                  MaterialBanner(
+                    content: Text(
+                      'Další rozepsané tréninky: ${app.otherActiveWorkouts.length}. Záznamy z obou zařízení zůstávají uložené.',
+                    ),
+                    actions: [
+                      TextButton(
+                        onPressed: () async {
+                          final id = await showDialog<String>(
+                            context: context,
+                            builder: (ctx) => SimpleDialog(
+                              title: const Text('Vyber rozepsaný trénink'),
+                              children: [
+                                for (final w in [
+                                  if (app.active != null) app.active!,
+                                  ...app.otherActiveWorkouts,
+                                ])
+                                  SimpleDialogOption(
+                                    onPressed: () => Navigator.pop(ctx, w.id),
+                                    child: Text(
+                                      '${w.planName} · ${w.startedAt.toLocal()}',
+                                    ),
+                                  ),
+                              ],
+                            ),
+                          );
+                          if (id != null) await app.selectActiveWorkout(id);
+                        },
+                        child: const Text('Vybrat trénink'),
+                      ),
+                    ],
+                  ),
                 if (app.saveError != null)
                   MaterialBanner(
                     content: Text(app.saveError!),
@@ -145,30 +247,9 @@ class _AppShellState extends State<AppShell> {
               ],
             ),
           ),
-          bottomNavigationBar: app.locked
+          bottomNavigationBar: app.locked || app.layout == 'Detailní'
               ? null
-              : NavigationBar(
-                  selectedIndex: tab,
-                  onDestinationSelected: (value) => setState(() => tab = value),
-                  destinations: const [
-                    NavigationDestination(
-                      icon: Icon(Icons.fitness_center),
-                      label: 'Trénink',
-                    ),
-                    NavigationDestination(
-                      icon: Icon(Icons.history),
-                      label: 'Historie',
-                    ),
-                    NavigationDestination(
-                      icon: Icon(Icons.show_chart),
-                      label: 'Progres',
-                    ),
-                    NavigationDestination(
-                      icon: Icon(Icons.tune),
-                      label: 'Nastavení',
-                    ),
-                  ],
-                ),
+              : navigation,
         );
       },
     );

@@ -39,14 +39,20 @@ class SettingsPage extends StatelessWidget {
   }
 
   Future<void> _backupToFile(BuildContext context) async {
-    final backup = await app.exportBackup();
-    if (!context.mounted) return;
-    await _saveFile(
-      context,
-      name: 'athlete-os-zaloha-${_stamp()}.json',
-      content: backup,
-      mime: 'application/json',
-    );
+    try {
+      final backup = await app.exportBackup();
+      if (!context.mounted) return;
+      await _saveFile(
+        context,
+        name: 'athlete-os-zaloha-${_stamp()}.json',
+        content: backup,
+        mime: 'application/json',
+      );
+    } catch (error) {
+      if (context.mounted) {
+        toast(context, 'Zálohu se nepodařilo vytvořit: $error');
+      }
+    }
   }
 
   Future<void> _exportCsv(BuildContext context) async {
@@ -102,8 +108,12 @@ class SettingsPage extends StatelessWidget {
     )) {
       return;
     }
-    await app.wipeLocalData();
-    if (context.mounted) toast(context, 'Data v zařízení byla smazána.');
+    try {
+      await app.wipeLocalData();
+      if (context.mounted) toast(context, 'Data v zařízení byla smazána.');
+    } catch (error) {
+      if (context.mounted) toast(context, 'Smazání se nezdařilo: $error');
+    }
   }
 
   Future<void> _copyBackup(BuildContext context) async {
@@ -192,6 +202,7 @@ class SettingsPage extends StatelessWidget {
         segments: const [
           ButtonSegment(value: 'Přehledný', label: Text('Přehledný')),
           ButtonSegment(value: 'Detailní', label: Text('Detailní')),
+          ButtonSegment(value: 'Soustředěný', label: Text('Soustředěný')),
         ],
         selected: {app.layout},
         onSelectionChanged: (v) => app.setPreferences(newLayout: v.first),

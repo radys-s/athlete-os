@@ -5,6 +5,54 @@ import 'package:uuid/uuid.dart';
 
 late List<Map<String, String>> builtInExercises;
 
+enum MeasurementType {
+  weighted,
+  bodyweight,
+  assisted,
+  timed;
+
+  static MeasurementType parse(Object? value) =>
+      values.firstWhere((type) => type.name == value, orElse: () => weighted);
+
+  String get label => switch (this) {
+    weighted => 'Váha a opakování',
+    bodyweight => 'Vlastní váha',
+    assisted => 'Dopomoc a opakování',
+    timed => 'Čas',
+  };
+
+  String get weightLabel => switch (this) {
+    bodyweight => 'Přidané kg (volitelné)',
+    assisted => 'Dopomoc (kg)',
+    _ => 'kg',
+  };
+}
+
+MeasurementType exerciseMeasurement(
+  String id,
+  List<Map<String, dynamic>> custom,
+) {
+  for (final exercise in [...builtInExercises, ...custom]) {
+    if (exercise['id'] == id) {
+      return MeasurementType.parse(exercise['measurement']);
+    }
+  }
+  return MeasurementType.weighted;
+}
+
+String setMeasurementLabel(WorkoutSet set, MeasurementType type) {
+  final kg = set.weight == set.weight.roundToDouble()
+      ? set.weight.toStringAsFixed(0)
+      : set.weight.toString();
+  return switch (type) {
+    MeasurementType.timed => '${set.seconds} s',
+    MeasurementType.bodyweight =>
+      '${set.reps} opakování${set.weight > 0 ? ' + $kg kg' : ''}',
+    MeasurementType.assisted => '$kg kg dopomoc × ${set.reps}',
+    MeasurementType.weighted => '$kg kg × ${set.reps}',
+  };
+}
+
 Future<void> loadCatalog() async {
   final raw = await rootBundle.loadString('catalog/exercises.json');
   builtInExercises = (jsonDecode(raw) as List<dynamic>)
@@ -36,6 +84,8 @@ String exerciseMuscle(String id, List<Map<String, dynamic>> custom) {
 
 const _uuid = Uuid();
 String newId() => _uuid.v4();
+String completedWorkoutId(String activeId) =>
+    _uuid.v5(Namespace.url.value, 'athlete-os/session/$activeId');
 
 double _d(Object? v, [double fallback = 0]) => v is num
     ? v.toDouble()
@@ -50,6 +100,7 @@ Map<String, dynamic> _extra(Map<String, dynamic> json, Set<String> known) => {
 };
 
 class PlanExercise {
+  MeasurementType measurement;
   String id;
   String exerciseId;
   List<int> targets;
@@ -62,6 +113,7 @@ class PlanExercise {
   final Map<String, dynamic> extra;
 
   PlanExercise({
+    this.measurement = MeasurementType.weighted,
     required this.id,
     required this.exerciseId,
     List<int>? targets,
@@ -76,6 +128,7 @@ class PlanExercise {
        extra = extra ?? {};
 
   static const _known = {
+    'measurement',
     'id',
     'exerciseId',
     'targets',
@@ -93,6 +146,7 @@ class PlanExercise {
         .map((e) => _i(e, 10))
         .toList();
     return PlanExercise(
+      measurement: MeasurementType.parse(json['measurement']),
       // Legacy plans have no item id; the exercise id was unique per plan.
       id: json['id'] as String? ?? exerciseId,
       exerciseId: exerciseId,
@@ -109,6 +163,7 @@ class PlanExercise {
 
   Map<String, dynamic> toJson() => {
     ...extra,
+    'measurement': measurement.name,
     'id': id,
     'exerciseId': exerciseId,
     'targets': targets,
@@ -129,14 +184,24 @@ class PlanExercise {
 
   String? validate() {
     if (targets.isEmpty || targets.any((t) => t < 1)) {
-      return 'Cíl opakování musí být alespoň 1.';
+      return measurement == MeasurementType.timed
+          ? 'Cíl času musí být alespoň 1 sekunda.'
+          : 'Cíl opakování musí být alespoň 1.';
     }
-    if (step <= 0) return 'Krok váhy musí být větší než 0.';
+    if (measurement == MeasurementType.weighted &&
+        (!step.isFinite || step <= 0)) {
+      return 'Krok váhy musí být větší než 0.';
+    }
     if (warmupSets < 0 || warmupSets > 5) {
       return 'Počet rozcvičovacích sérií musí být 0 až 5.';
     }
-    if (weight < 0) return 'Váha nemůže být záporná.';
-    if (ruleType == 'repRange' && (rangeMin < 1 || rangeMax < rangeMin)) {
+    if (measurement != MeasurementType.timed &&
+        (!weight.isFinite || weight < 0)) {
+      return 'Váha musí být platné nezáporné číslo.';
+    }
+    if (measurement == MeasurementType.weighted &&
+        ruleType == 'repRange' &&
+        (rangeMin < 1 || rangeMax < rangeMin)) {
       return 'Rozsah opakování je neplatný.';
     }
     return null;
@@ -193,6 +258,7 @@ class Plan {
 }
 
 class WorkoutSet {
+  int seconds;
   int target;
   int reps;
   double weight;
@@ -202,6 +268,7 @@ class WorkoutSet {
   final Map<String, dynamic> extra;
 
   WorkoutSet({
+    this.seconds = 0,
     required this.target,
     required this.reps,
     required this.weight,
@@ -211,9 +278,18 @@ class WorkoutSet {
     Map<String, dynamic>? extra,
   }) : extra = extra ?? {};
 
-  static const _known = {'target', 'reps', 'weight', 'rir', 'done', 'kind'};
+  static const _known = {
+    'seconds',
+    'target',
+    'reps',
+    'weight',
+    'rir',
+    'done',
+    'kind',
+  };
 
   factory WorkoutSet.fromJson(Map<String, dynamic> json) => WorkoutSet(
+    seconds: _i(json['seconds']),
     target: _i(json['target'], _i(json['reps'])),
     reps: _i(json['reps']),
     weight: _d(json['weight']),
@@ -225,6 +301,7 @@ class WorkoutSet {
 
   Map<String, dynamic> toJson() => {
     ...extra,
+    'seconds': seconds,
     'target': target,
     'reps': reps,
     'weight': weight,
@@ -235,6 +312,7 @@ class WorkoutSet {
 }
 
 class WorkoutExercise {
+  MeasurementType measurement;
   String exerciseId;
   String? planExerciseId;
   List<WorkoutSet> sets;
@@ -247,6 +325,7 @@ class WorkoutExercise {
   final Map<String, dynamic> extra;
 
   WorkoutExercise({
+    this.measurement = MeasurementType.weighted,
     required this.exerciseId,
     this.planExerciseId,
     required this.sets,
@@ -257,6 +336,7 @@ class WorkoutExercise {
   }) : extra = extra ?? {};
 
   static const _known = {
+    'measurement',
     'note',
     'exerciseId',
     'planExerciseId',
@@ -274,6 +354,7 @@ class WorkoutExercise {
       );
     }
     return WorkoutExercise(
+      measurement: MeasurementType.parse(json['measurement']),
       exerciseId: json['exerciseId'] as String,
       planExerciseId: json['planExerciseId'] as String? ?? rule?.id,
       sets: asMaps(json['sets']).map(WorkoutSet.fromJson).toList(),
@@ -286,6 +367,7 @@ class WorkoutExercise {
 
   Map<String, dynamic> toJson() => {
     ...extra,
+    'measurement': measurement.name,
     if (note.trim().isNotEmpty) 'note': note,
     'exerciseId': exerciseId,
     if (planExerciseId != null) 'planExerciseId': planExerciseId,
@@ -295,9 +377,11 @@ class WorkoutExercise {
     'weightPr': weightPr,
   };
 
-  double get bestDoneWeight => sets
-      .where((s) => s.done && s.kind == 'work')
-      .fold<double>(0, (best, s) => s.weight > best ? s.weight : best);
+  double get bestDoneWeight => measurement != MeasurementType.weighted
+      ? 0
+      : sets
+            .where((s) => s.done && s.kind == 'work')
+            .fold<double>(0, (best, s) => s.weight > best ? s.weight : best);
 
   List<WorkoutSet> get workSets => sets.where((s) => s.kind == 'work').toList();
 }
@@ -458,4 +542,26 @@ class Workout {
   };
 
   Workout copy() => Workout.fromJson(deepCopy(toJson()));
+
+  String? validateCompleted() {
+    if (!exercises.any((e) => e.workSets.any((s) => s.done))) {
+      return 'Zapiš alespoň jednu pracovní sérii.';
+    }
+    for (final exercise in exercises) {
+      for (final set in exercise.sets.where((s) => s.done)) {
+        if (exercise.measurement == MeasurementType.timed
+            ? set.seconds < 1
+            : (set.reps < 1 ||
+                  !set.weight.isFinite ||
+                  set.weight < 0 ||
+                  (set.rir != null && (set.rir! < 0 || set.rir! > 10)))) {
+          if (exercise.measurement == MeasurementType.timed) {
+            return 'Čas dokončené série musí být alespoň 1 sekunda.';
+          }
+          return 'Oprav opakování, váhu nebo RIR u dokončené série.';
+        }
+      }
+    }
+    return null;
+  }
 }

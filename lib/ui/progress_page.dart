@@ -16,6 +16,7 @@ class ProgressPage extends StatefulWidget {
 
 class _ProgressPageState extends State<ProgressPage> {
   String? selected;
+  MeasurementType? selectedMeasurement;
 
   @override
   Widget build(BuildContext context) {
@@ -29,8 +30,18 @@ class _ProgressPageState extends State<ProgressPage> {
       return const Center(child: Text('Grafy se objeví po prvním tréninku.'));
     }
     selected = ids.contains(selected) ? selected : ids.first;
+    final availableTypes = app.sessions
+        .expand((s) => s.exercises)
+        .where((e) => e.exerciseId == selected)
+        .map((e) => e.measurement)
+        .toSet()
+        .toList();
+    if (!availableTypes.contains(selectedMeasurement)) {
+      selectedMeasurement = availableTypes.first;
+    }
+    final measurement = selectedMeasurement!;
     final points = <FlSpot>[];
-    double bestWeight = 0;
+    double? bestValue;
     double bestE1rm = 0;
     final ordered = [...app.sessions]
       ..sort(
@@ -39,17 +50,47 @@ class _ProgressPageState extends State<ProgressPage> {
         ),
       );
     for (final session in ordered) {
-      final matching = session.exercises.where((e) => e.exerciseId == selected);
-      if (matching.isEmpty) continue;
-      double maxWeight = 0;
-      for (final set in matching.first.workSets.where((s) => s.done)) {
-        if (set.weight > maxWeight) maxWeight = set.weight;
-        if (set.weight > bestWeight) bestWeight = set.weight;
-        final estimate = estimatedOneRepMax(set.weight, set.reps);
-        if (estimate != null && estimate > bestE1rm) bestE1rm = estimate;
+      final matching = session.exercises.where(
+        (e) => e.exerciseId == selected && e.measurement == measurement,
+      );
+      double? sessionBest;
+      for (final exercise in matching) {
+        final value = bestCompletedMeasurement(exercise);
+        if (value == null) continue;
+        if (sessionBest == null ||
+            (measurement == MeasurementType.assisted
+                ? value < sessionBest
+                : value > sessionBest)) {
+          sessionBest = value;
+        }
+        if (bestValue == null ||
+            (measurement == MeasurementType.assisted
+                ? value < bestValue
+                : value > bestValue)) {
+          bestValue = value;
+        }
+        if (measurement == MeasurementType.weighted) {
+          for (final set in exercise.workSets.where((s) => s.done)) {
+            final estimate = estimatedOneRepMax(set.weight, set.reps);
+            if (estimate != null && estimate > bestE1rm) bestE1rm = estimate;
+          }
+        }
       }
-      points.add(FlSpot(points.length.toDouble(), maxWeight));
+      if (sessionBest != null) {
+        points.add(FlSpot(points.length.toDouble(), sessionBest));
+      }
     }
+    final metricLabel = switch (measurement) {
+      MeasurementType.weighted => 'Nejvyšší dokončená váha',
+      MeasurementType.bodyweight => 'Nejvíce opakování v sérii',
+      MeasurementType.assisted => 'Nejnižší dopomoc (nižší je lepší)',
+      MeasurementType.timed => 'Nejdelší dokončená série',
+    };
+    final unit = switch (measurement) {
+      MeasurementType.weighted || MeasurementType.assisted => 'kg',
+      MeasurementType.bodyweight => 'opakování',
+      MeasurementType.timed => 's',
+    };
     final muscles = <String, int>{};
     for (final session in app.sessions) {
       for (final exercise in session.exercises) {
@@ -75,13 +116,24 @@ class _ProgressPageState extends State<ProgressPage> {
               .toList(),
           onChanged: (v) => setState(() => selected = v),
         ),
+        if (availableTypes.length > 1)
+          DropdownButtonFormField<MeasurementType>(
+            key: ValueKey('$selected-$measurement'),
+            initialValue: measurement,
+            decoration: const InputDecoration(
+              labelText: 'Typ měření (historie se neslučuje)',
+            ),
+            items: availableTypes
+                .map((m) => DropdownMenuItem(value: m, child: Text(m.label)))
+                .toList(),
+            onChanged: (m) => setState(() => selectedMeasurement = m),
+          ),
         const SizedBox(height: 20),
+        Text(metricLabel, style: Theme.of(context).textTheme.titleMedium),
         Text(
-          'Nejvyšší dokončená váha',
-          style: Theme.of(context).textTheme.titleMedium,
-        ),
-        Text(
-          '${fmtNum(bestWeight)} kg',
+          bestValue == null
+              ? 'Žádná dokončená série'
+              : '${fmtNum(bestValue)} $unit',
           style: Theme.of(context).textTheme.headlineMedium,
         ),
         const SizedBox(height: 20),
@@ -118,11 +170,12 @@ class _ProgressPageState extends State<ProgressPage> {
             style: Theme.of(context).textTheme.titleLarge,
           ),
           Text(
-            'Celkový objem dokončených sérií: ${completedVolume(app.sessions.map((s) => s.toJson()).toList()).toStringAsFixed(0)} kg × opakování',
+            'Objem sérií s váhou: ${completedVolume(app.sessions.map((s) => s.toJson()).toList()).toStringAsFixed(0)} kg × opakování',
           ),
-          Text(
-            'Nejvyšší odhad 1RM: ${bestE1rm.toStringAsFixed(1)} kg (Epley, 1–10 opakování)',
-          ),
+          if (measurement == MeasurementType.weighted)
+            Text(
+              'Nejvyšší odhad 1RM: ${bestE1rm.toStringAsFixed(1)} kg (Epley, 1–10 opakování)',
+            ),
           const SizedBox(height: 12),
           Text(
             'Dokončené série podle primární skupiny',

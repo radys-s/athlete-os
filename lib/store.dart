@@ -274,7 +274,6 @@ class LocalStore {
     final allowedKinds = {'plan', 'session', 'active', 'exercise', 'settings'};
     final items = <(String, Map<String, dynamic>)>[];
     final ids = <String>{};
-    var activeCount = 0;
     for (final rawItem in decoded['items'] as List) {
       if (rawItem is! Map || rawItem['payload'] is! Map) {
         throw const FormatException('Záloha obsahuje neplatný záznam.');
@@ -298,7 +297,6 @@ class LocalStore {
         case 'session':
         case 'active':
           Workout.fromJson(payload);
-          if (kind == 'active') activeCount++;
           break;
         case 'exercise':
           if (payload['name'] is! String || payload['muscle'] is! String) {
@@ -312,9 +310,6 @@ class LocalStore {
           break;
       }
       items.add((kind, payload));
-    }
-    if (activeCount > 1) {
-      throw const FormatException('Záloha obsahuje více rozepsaných tréninků.');
     }
     await db.transaction(() async {
       final existing = await db

@@ -5,6 +5,7 @@ import 'app_controller.dart';
 import 'models.dart';
 import 'sync.dart';
 import 'ui/shell.dart';
+import 'update_safety.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -15,6 +16,7 @@ Future<void> main() async {
     }
     final controller = AppController();
     await controller.initialize();
+    registerUpdateSave(controller.flushActive);
     runApp(AthleteApp(controller));
   } catch (error) {
     runApp(StartupErrorApp(error));

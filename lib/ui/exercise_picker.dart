@@ -39,35 +39,51 @@ class _ExercisePickerState extends State<ExercisePicker> {
     final name = TextEditingController();
     String muscle = 'Ostatní';
     String tool = 'Jiné';
+    MeasurementType measurement = MeasurementType.weighted;
     final result = await showDialog<bool>(
       context: context,
       builder: (context) => StatefulBuilder(
         builder: (context, update) => AlertDialog(
           title: const Text('Vlastní cvik'),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextField(
-                controller: name,
-                decoration: const InputDecoration(labelText: 'Název'),
-              ),
-              DropdownButton<String>(
-                value: muscle,
-                isExpanded: true,
-                items: muscles
-                    .map((m) => DropdownMenuItem(value: m, child: Text(m)))
-                    .toList(),
-                onChanged: (v) => update(() => muscle = v!),
-              ),
-              DropdownButton<String>(
-                value: tool,
-                isExpanded: true,
-                items: equipment
-                    .map((e) => DropdownMenuItem(value: e, child: Text(e)))
-                    .toList(),
-                onChanged: (v) => update(() => tool = v!),
-              ),
-            ],
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextField(
+                  controller: name,
+                  decoration: const InputDecoration(labelText: 'Název'),
+                ),
+                DropdownButton<String>(
+                  value: muscle,
+                  isExpanded: true,
+                  items: muscles
+                      .map((m) => DropdownMenuItem(value: m, child: Text(m)))
+                      .toList(),
+                  onChanged: (v) => update(() => muscle = v!),
+                ),
+                DropdownButton<String>(
+                  value: tool,
+                  isExpanded: true,
+                  items: equipment
+                      .map((e) => DropdownMenuItem(value: e, child: Text(e)))
+                      .toList(),
+                  onChanged: (v) => update(() => tool = v!),
+                ),
+                DropdownButtonFormField<MeasurementType>(
+                  initialValue: measurement,
+                  decoration: const InputDecoration(labelText: 'Měření cviku'),
+                  items: MeasurementType.values
+                      .map(
+                        (m) => DropdownMenuItem(value: m, child: Text(m.label)),
+                      )
+                      .toList(),
+                  onChanged: (v) => update(() => measurement = v!),
+                ),
+                const Text(
+                  'U vlastní váhy zapisuj jen přidanou zátěž, ne tělesnou hmotnost.',
+                ),
+              ],
+            ),
           ),
           actions: [
             TextButton(
@@ -83,7 +99,12 @@ class _ExercisePickerState extends State<ExercisePicker> {
       ),
     );
     if (result == true && name.text.trim().isNotEmpty) {
-      await widget.app.saveExercise(name.text, muscle, tool);
+      await widget.app.saveExercise(
+        name.text,
+        muscle,
+        tool,
+        measurement: measurement,
+      );
       if (mounted) setState(() {});
     }
     name.dispose();
@@ -156,7 +177,7 @@ class _ExercisePickerState extends State<ExercisePicker> {
                   ListTile(
                     title: Text(exercise['name'] as String),
                     subtitle: Text(
-                      '${exercise['muscle']} · ${exercise['equipment'] ?? 'Jiné'}',
+                      '${exercise['muscle']} · ${exercise['equipment'] ?? 'Jiné'} · ${MeasurementType.parse(exercise['measurement']).label}',
                     ),
                     onTap: () =>
                         Navigator.pop(context, exercise['id'] as String),

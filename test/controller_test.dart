@@ -42,6 +42,26 @@ void main() {
     await database.close();
   });
 
+  test(
+    'assisted warmups do not reduce assistance and increase difficulty',
+    () async {
+      final plan = _plan(weight: 60);
+      plan.exercises.single.measurement = MeasurementType.assisted;
+      plan.exercises.single.warmupSets = 2;
+      await app.savePlan(plan);
+      await app.startPlan(app.plans.single);
+      expect(
+        app.active!.exercises.single.sets.every((s) => s.weight == 60),
+        true,
+      );
+      for (final s in app.active!.exercises.single.sets) {
+        s.done = true;
+      }
+      expect(await app.finish(), isEmpty);
+      expect(app.sessions.single.exercises.single.weightPr, false);
+    },
+  );
+
   test('rapid edits to different sets are all kept', () async {
     await app.savePlan(_plan());
     await app.startPlan(app.plans.single);
@@ -135,6 +155,28 @@ void main() {
     expect(error, contains('už není aktuální'));
     expect(app.plans.single.exercises.single.weight, 45);
   });
+
+  test(
+    'completion identity is stable across devices for the same workout',
+    () async {
+      await app.savePlan(_plan());
+      await app.startPlan(app.plans.single);
+      final id = app.active!.id;
+      for (final s in app.active!.exercises.single.sets) {
+        s.done = true;
+      }
+      await app.finish();
+      expect(app.sessions.single.id, completedWorkoutId(id));
+      final copy = app.sessions.single.copy();
+      copy.id = id;
+      copy.finishedAt = null;
+      await store.put('active', copy.toJson());
+      await app.reload();
+      await expectLater(app.finish(), throwsException);
+      expect((await store.all('session')).length, 1);
+      expect(app.active!.id, id);
+    },
+  );
 
   test(
     'warmups survive history but do not count toward PR or progression',
@@ -289,4 +331,87 @@ void main() {
     expect(app.active, isNull);
     expect(await store.all('active'), isEmpty);
   });
+
+  test('invalid history edit leaves saved history and PR unchanged', () async {
+    await app.savePlan(_plan());
+    await app.startPlan(app.plans.single);
+    for (final s in app.active!.exercises.single.sets) {
+      s.done = true;
+    }
+    await app.finish();
+    final edited = app.sessions.single.copy();
+    edited.exercises.single.sets.first.reps = 0;
+    await expectLater(app.saveEditedSession(edited), throwsStateError);
+    expect(app.sessions.single.exercises.single.sets.first.reps, 12);
+    expect(app.sessions.single.exercises.single.weightPr, true);
+  });
+
+  test(
+    'changed targets invalidate a proposal even at the same weight',
+    () async {
+      await app.savePlan(_plan());
+      await app.startPlan(app.plans.single);
+      for (final s in app.active!.exercises.single.sets) {
+        s.done = true;
+      }
+      await app.finish();
+      final session = app.sessions.single;
+      final plan = app.plans.single.copy();
+      plan.exercises.single.targets = [8, 8, 8];
+      await app.savePlan(plan);
+      expect(
+        await app.decideProposal(
+          session.id,
+          session.proposals.single.id,
+          accept: true,
+        ),
+        contains('už není aktuální'),
+      );
+      expect(app.plans.single.exercises.single.weight, 40);
+      expect(app.sessions.single.proposals.single.status, 'pending');
+    },
+  );
+
+  test('deleting older PR promotes the remaining session record', () async {
+    await app.savePlan(_plan());
+    for (final weight in [50.0, 40.0]) {
+      await app.startPlan(app.plans.single);
+      for (final s in app.active!.exercises.single.sets) {
+        s.done = true;
+        s.weight = weight;
+      }
+      await app.finish();
+    }
+    expect(app.sessions.first.exercises.single.weightPr, false);
+    await app.deleteSession(app.sessions.last.id);
+    expect(app.sessions.single.exercises.single.weightPr, true);
+  });
+
+  test(
+    'multiple active rows preserve selection and backup can restore both',
+    () async {
+      await app.startQuickWorkout();
+      final original = app.active!.id;
+      final second = app.active!.copy()
+        ..id = 'second'
+        ..planName = 'Druhý telefon';
+      await store.put('active', second.toJson());
+      await app.reload();
+      expect(app.active!.id, original);
+      expect(app.otherActiveWorkouts.single.id, 'second');
+      await app.selectActiveWorkout('second');
+      expect(app.active!.id, 'second');
+      expect(app.otherActiveWorkouts.single.id, original);
+      final backup = await app.exportBackup();
+      final otherDb = AthleteDatabase(NativeDatabase.memory());
+      final other = LocalStore(otherDb);
+      try {
+        await other.open();
+        await other.importBackup(backup);
+        expect((await other.all('active')).length, 2);
+      } finally {
+        await otherDb.close();
+      }
+    },
+  );
 }

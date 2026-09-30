@@ -84,9 +84,9 @@ class _SessionCard extends StatelessWidget {
             Padding(
               padding: const EdgeInsets.only(top: 8),
               child: Text(
-                '${exercise.weightPr ? '🏆 PR · ' : ''}'
+                '${exercise.measurement == MeasurementType.weighted && exercise.weightPr ? '🏆 PR · ' : ''}'
                 '${exerciseName(exercise.exerciseId, app.customExercises)}: '
-                '${exercise.workSets.where((s) => s.done).map((s) => '${fmtNum(s.weight)} kg × ${s.reps}').join(' · ')}'
+                '${exercise.workSets.where((s) => s.done).map((s) => setMeasurementLabel(s, exercise.measurement)).join(' · ')}'
                 '${exercise.note.trim().isEmpty ? '' : ' · 📝 ${exercise.note}'}',
               ),
             ),

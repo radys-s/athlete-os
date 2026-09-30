@@ -1,7 +1,7 @@
 // The first successful install caches everything needed to reopen the tracker offline.
-const CACHE = 'athlete-os-shell-v5';
+const CACHE = 'athlete-os-shell-v6';
 const PRECACHE = [
-  './', './index.html', './flutter_bootstrap.js', './flutter.js',
+  './', './index.html', './app_bootstrap.js', './flutter_bootstrap.js',
   './main.dart.js', './manifest.json', './sqlite3.wasm',
   './assets/AssetManifest.bin', './assets/FontManifest.json',
   './assets/catalog/exercises.json',
@@ -15,8 +15,9 @@ const PRECACHE = [
 self.addEventListener('install', (event) => {
   event.waitUntil(
     caches.open(CACHE)
-      .then((cache) => Promise.allSettled(PRECACHE.map((url) => cache.add(url))))
-      .then(() => self.skipWaiting()),
+      .then((cache) => cache.addAll(PRECACHE))
+      .then(() => self.skipWaiting())
+      .catch(async (error) => { await caches.delete(CACHE); throw error; }),
   );
 });
 
@@ -38,6 +39,9 @@ self.addEventListener('fetch', (event) => {
   if (url.pathname.includes('/auth/') || url.pathname.includes('/rest/') ||
       url.pathname.includes('/v1/') || url.pathname.includes('/functions/')) return;
   event.respondWith((async () => {
+    const cache = await caches.open(CACHE);
+    const cached = await cache.match(event.request, {ignoreSearch: true});
+    if (cached) return cached;
     try {
       const response = await fetch(event.request);
       if (response.ok) {
@@ -46,10 +50,8 @@ self.addEventListener('fetch', (event) => {
       }
       return response;
     } catch (_) {
-      const cached = await caches.match(event.request, {ignoreSearch: true});
-      if (cached) return cached;
       if (event.request.mode === 'navigate') {
-        return (await caches.match('./index.html')) || Response.error();
+        return (await cache.match('./index.html')) || Response.error();
       }
       return Response.error();
     }

@@ -1,29 +1,35 @@
-# Athlete OS: stav po M1 a další pořadí
+# Athlete OS: stav verze 1.2.0+3
 
-## Co už funguje v kódu
+## Implementováno
 
-- Lokální plány i volný trénink bez plánu, katalog 53 cviků, vlastní cvik, aktivní trénink a historie. Cvik lze přidat i do rozepsaného tréninku.
-- Pracovní a rozcvičovací série jsou oddělené. Rozcvičení se nepočítá do PR, objemu ani návrhu progrese. Plánované pracovní cíle zůstávají snímkem plánu při startu tréninku.
-- Poznámka k tréninku, přidání a odebrání pracovní série, časovač, základní grafy, vysvětlené návrhy další váhy.
-- Drift SQLite lokálně, ruční JSON záloha/obnova přes schránku, synchronizační protokol a server Machine Scan mají implementaci. Bez nakonfigurovaných externích služeb funguje pouze lokální režim.
-- Android debug APK a webový build lze sestavit na Windows. Web má vlastní offline cache; skutečný iPhone zatím nebyl ověřen.
+- Offline Flutter tracker: plány, volný trénink, 54 katalogových a vlastní cviky, pracovní/rozcvičovací série, váha, opakování, volitelné RIR, časovač, historie a grafy. Rozcvičení se nepočítá do objemu, PR ani progrese.
+- Samostatné typy měření: váha/opakování, vlastní váha s volitelnými přidanými kg, dopomoc a čas v sekundách. Grafy oddělují jednotky; objem kg × opakování, odhad 1RM a automatické návrhy váhy se týkají vážených cviků. Historické záznamy bez typu zůstávají vážené a nejsou zpětně přepsané katalogem.
+- Supersety se ukládají v plánu, tréninku i opakované historii. Pauza začne po dokončení kola; kratší cvik neblokuje další kola delšího cviku. Rozcvičení asistovaných cviků automaticky nesnižuje dopomoc.
+- Krátké tříkrokové nastavení první instalace, režimy Simple/Standard/Advanced a tři rozvržení: Přehledný, Detailní, Soustředěný. Změna režimu nemaže historii.
+- Záloha/obnova do JSON souboru, CSV pro český Excel, poznámky k tréninku i cvikům, editace dokončeného tréninku. Editace i smazání přepočítají PR v jedné databázové transakci; neplatná dokončená série se neuloží.
+- Cvik v aktivním tréninku lze přesunout, odebrat a nahradit. Náhrada je povolená před první dokončenou sérií; jinak aplikace nabídne přidání alternativy. Odebrání zaznamenaných sérií vyžaduje potvrzení. Náhradní cvik nepřebírá progresi původního plánu ani při opakování historie.
+- Vysvětlené návrhy váhy vyžadují potvrzení. Změna cílových opakování, pravidla, kroku nebo váhy zneplatní dřívější návrh. Přijetí návrhu a změna plánu se uloží atomicky.
+- Více rozepsaných tréninků z různých zařízení zůstává přístupných přes výběr; reload zachovává právě zvolený trénink. Záloha umí tento stav obnovit. Dokončený trénink má deterministické ID odvozené od active ID, aby dvě zařízení nevytvořila dva různé záznamy téže session.
+- Supabase synchronizace používá úplnou kontrolu záznamů a stránkuje podle stabilního ID. Pro malé V1 účty upřednostňujeme správnost před úsporou přenesených dat. Revize chrání souběžné úpravy; odhlášení uzamyká místní data účtu. Smazání dat ze zařízení také lokálně odhlásí účet, takže synchronizace data hned nevrátí.
+- PWA spustí Flutter teprve po získání zámku jediného okna. Povinné offline soubory musí být stažené všechny; neúspěšná aktualizace zachová předchozí cache. Cache používá soubory jedné verze. Aktualizační tlačítko čeká na uložení tréninku.
+- FastAPI Machine Scan, ověření účtu, katalogový filtr a denní limit mají serverovou implementaci. Bez konfigurace cloudu/skenu funguje místní tracker.
 
-## Co brání označení „téměř hotová beta“
+## Review Claudeových změn
 
-1. **Data uživatele:** Ruční záloha přes schránku je funkční základ, ale je potřeba ji uložit do vlastního souboru; schránka sama data neuchová. Chybí pohodlný souborový export/import a ověřená cloudová záloha na reálném projektu.
-2. **Web/PWA:** Ověřit čerstvou instalaci, aktualizaci service workeru, offline otevření a uložení/obnovení rozpracovaného tréninku na skutečném iPhonu přes HTTPS. Test na localhostu toto nenahrazuje.
-3. **Úplnost gym toku:** Chybí bezpečná editace dokončeného tréninku, poznámky k jednotlivým cvikům, náhrada cviku během tréninku, podpora supersetů a promyšlené bodyweight záznamy. Stávající návrh váhy pracuje v kg a pro cviky s vlastní vahou automatický návrh nevytváří.
-4. **Cloud a sken:** Supabase schéma, RLS, konflikty a limity skenu musí projít živým integračním testem; sken je třeba měřit na skutečných strojích. API klíče patří jen na server.
-5. **Distribuce:** Android APK je sestavitelné, fyzický Android a iPhone PWA nebyly tímto krokem potvrzeny. Nativní iPhone sestavení odkládáme.
+Opravené nálezy: druhá záložka zapisovala pod překryvným varováním; offsetové stránkování podle updated_at mohlo přeskočit záznam; smazaná místní data se automaticky vracela; neúplná nová offline cache mohla nahradit funkční starou. Dále doplněna validace historie a přepočet PR po smazání.
 
-## Pořadí pokračování
+## Co ještě není finále
 
-Nejdřív souborový export/import a editace historie, pak dokončení aktivního tréninkového toku. Potom ověřený cloud a sken, fyzická PWA/Android zkouška a teprve následně pozvání dalších lidí.
+1. Živá Supabase synchronizace, RLS, smazání účtu a Machine Scan na reálných strojích nejsou potvrzené. Nastavení a měření provozních nákladů vyžadují skutečný projekt a server.
+2. iPhone PWA přes HTTPS, fyzický Android, instalace a aktualizace v reálném zařízení nejsou potvrzené. Nativní iOS/TestFlight odkládáme. APK zatím používá vývojový podpis.
+3. V tomto review byl pokus o nové browserové ověření localhost náhledu odmítnut oprávněním. Automatické testy a kompilace tuto zkoušku nenahrazují.
 
-Monetizaci technicky nepředstíráme: beta zůstává zdarma. Offline tracker může být jednorázový nákup nebo bezplatný základ; nákladné cloudové/AI funkce potřebují průběžné financování (předplatné nebo měřené kredity). Konkrétní cenu, hranici premium a obchodní model určí až měření používání a provozních nákladů mimo první malou skupinu.
+## Ověření
 
-## Aktualizace (Claude, verze 1.1.0+2)
+Aktuální výsledky automatických kontrol a sestavení jsou zaznamenané v docs/REVIEW_AND_NEXT_VERSION.md. Build není důkaz testu na telefonu.
 
-Přistálo: oprava perzistence webu (Drift na hlavním vlákně + flush po commitu; drift worker se do IndexedDB nedostal), SW upgrade banner a zámek jednoho okna, souborová záloha/obnova a CSV, detail a úprava dokončeného tréninku s přepočtem PR, poznámky ke cvikům, sync přes `RemoteApi` s inkrementálním pull kurzorem `last_pull_at` (7 testů s fake klientem), `supabase/migrations/002_v1_1.sql` (index + `delete_my_account`), smazání účtu a dat v zařízení.
+## Další pořadí
 
-Zbývá: náhrada cviku uprostřed tréninku, typy cviků (bodyweight/assisted/time), supersety, více `active` řádků z různých zařízení, živý test Supabase + skenu, iPhone PWA přes HTTPS, fyzický Android.
+Nakonfigurovat cloud a scan, provést živou zkoušku účtů/konfliktů a fyzický Android + iPhone PWA test. Teprve po jejich úspěchu pozvat testery. Místní funkce V1 jsou implementované; označení téměř finální verze vyžaduje ještě praktickou zkoušku těchto toků.
+
+Beta zůstává zdarma. Premium a ceny se budou rozhodovat až z použití a nákladů. Jednorázový offline nákup může financovat místní funkce; průběžné AI/cloud náklady potřebují předplatné nebo omezené kredity. V této verzi není implementovaný platební systém.

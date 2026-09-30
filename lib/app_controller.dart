@@ -1,6 +1,6 @@
 import 'dart:async';
 
-import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:flutter/foundation.dart' show kIsWeb, listEquals;
 import 'package:flutter/widgets.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -19,8 +19,11 @@ class AppController extends ChangeNotifier with WidgetsBindingObserver {
   List<Map<String, dynamic>> customExercises = [];
   List<Map<String, dynamic>> conflicts = [];
   Workout? active;
+  List<Workout> otherActiveWorkouts = [];
   String mode = 'Standard';
   String layout = 'Přehledný';
+  bool onboardingComplete = false;
+  String goal = 'Síla a svaly';
   bool ready = false;
   bool locked = false;
   bool pendingImport = false;
@@ -34,6 +37,7 @@ class AppController extends ChangeNotifier with WidgetsBindingObserver {
   Future<void>? _syncFuture;
   bool _disposed = false;
   bool _flushing = false;
+  bool _clearingLocalData = false;
   int _pendingWrites = 0;
   Future<void> _writeTail = Future<void>.value();
   String? saveError;
@@ -73,11 +77,28 @@ class AppController extends ChangeNotifier with WidgetsBindingObserver {
     final activeRows = await store.all('active');
     // Never replace the in-memory workout while edits are waiting to be saved.
     if (_saveTimer == null && !_flushing && saveError == null) {
-      active = activeRows.isEmpty ? null : Workout.fromJson(activeRows.first);
+      final selectedId = active?.id;
+      final selected = activeRows
+          .where((r) => r['id'] == selectedId)
+          .firstOrNull;
+      active = activeRows.isEmpty
+          ? null
+          : Workout.fromJson(selected ?? activeRows.first);
     }
+    otherActiveWorkouts = activeRows
+        .where((r) => r['id'] != active?.id)
+        .map(Workout.fromJson)
+        .toList();
     final settings = await store.get('settings');
     mode = settings?['mode'] as String? ?? 'Standard';
     layout = settings?['layout'] as String? ?? 'Přehledný';
+    if (!{'Simple', 'Standard', 'Advanced'}.contains(mode)) mode = 'Standard';
+    if (!{'Přehledný', 'Detailní', 'Soustředěný'}.contains(layout)) {
+      layout = 'Přehledný';
+    }
+    goal = settings?['goal'] as String? ?? 'Síla a svaly';
+    onboardingComplete =
+        settings?['onboardingComplete'] == true || await store.hasWorkoutData();
     notifyListeners();
   }
 
@@ -87,7 +108,9 @@ class AppController extends ChangeNotifier with WidgetsBindingObserver {
   }
 
   Future<void> sync() {
-    if (_disposed || locked || pendingImport) return Future<void>.value();
+    if (_disposed || locked || pendingImport || _clearingLocalData) {
+      return Future<void>.value();
+    }
     if (_syncing) {
       _syncRequested = true;
       return _syncFuture ?? Future<void>.value();
@@ -158,24 +181,43 @@ class AppController extends ChangeNotifier with WidgetsBindingObserver {
     await sync();
   }
 
-  Future<void> setPreferences({String? newMode, String? newLayout}) async {
-    mode = newMode ?? mode;
-    layout = newLayout ?? layout;
+  Future<void> setPreferences({
+    String? newMode,
+    String? newLayout,
+    String? newGoal,
+    bool? finishOnboarding,
+  }) async {
+    _requireUnlocked();
+    _requireUnlocked();
+    final existing = await store.get('settings');
+    final nextMode = newMode ?? mode;
+    final nextLayout = newLayout ?? layout;
+    final nextGoal = newGoal ?? goal;
+    final nextOnboarding = finishOnboarding ?? onboardingComplete;
     await store.put('settings', {
+      ...?existing,
       'id': 'settings',
-      'mode': mode,
-      'layout': layout,
+      'mode': nextMode,
+      'layout': nextLayout,
+      'goal': nextGoal,
+      'onboardingComplete': nextOnboarding,
     });
+    mode = nextMode;
+    layout = nextLayout;
+    goal = nextGoal;
+    onboardingComplete = nextOnboarding;
     notifyListeners();
     unawaited(sync());
   }
 
   Future<String> exportBackup() async {
+    _requireUnlocked();
     if (active != null) await flushActive();
     return store.exportBackup();
   }
 
   Future<int> importBackup(String source) async {
+    _requireUnlocked();
     final count = await store.importBackup(source);
     await reload();
     await _refreshAccountState();
@@ -185,19 +227,25 @@ class AppController extends ChangeNotifier with WidgetsBindingObserver {
   Future<void> saveExercise(
     String name,
     String muscle,
-    String equipment,
-  ) async {
+    String equipment, {
+    MeasurementType measurement = MeasurementType.weighted,
+  }) async {
+    _requireUnlocked();
     await store.put('exercise', {
       'id': newId(),
       'name': name.trim(),
       'muscle': muscle,
       'equipment': equipment,
+      'measurement': measurement.name,
     });
     await reload();
     unawaited(sync());
   }
 
   Future<void> savePlan(Plan plan) async {
+    _requireUnlocked();
+    final error = plan.validate();
+    if (error != null) throw StateError(error);
     await store.put('plan', plan.toJson());
     await reload();
     unawaited(sync());
@@ -223,16 +271,48 @@ class AppController extends ChangeNotifier with WidgetsBindingObserver {
   /// sessions in chronological order. Pending proposals of the edited
   /// workout are dropped because they were derived from the old numbers.
   Future<void> saveEditedSession(Workout edited) async {
-    edited.proposals = edited.proposals
-        .where((p) => p.status != 'pending')
-        .toList();
-    await store.put('session', edited.toJson());
+    _requireUnlocked();
+    final error = edited.validateCompleted();
+    if (error != null) throw StateError(error);
+    final prior = await store.raw(edited.id);
+    if (prior == null || prior['kind'] != 'session' || prior['deleted'] == 1) {
+      throw StateError('Trénink už neexistuje.');
+    }
+    await store.db.transaction(() async {
+      edited.proposals = edited.proposals
+          .where((p) => p.status != 'pending')
+          .toList();
+      await store.put('session', edited.toJson());
+      await _recomputePrFlags();
+    });
     await reload();
+    unawaited(sync());
+  }
+
+  Future<void> deleteSession(String id) async {
+    _requireUnlocked();
+    await store.db.transaction(() async {
+      await store.remove(id);
+      await _recomputePrFlags();
+    });
+    await reload();
+    unawaited(sync());
+  }
+
+  Future<void> _recomputePrFlags() async {
     final best = <String, double>{};
-    for (final session in sessions.reversed) {
+    final ordered = (await store.all('session')).map(Workout.fromJson).toList()
+      ..sort(
+        (a, b) => (a.finishedAt ?? a.startedAt).compareTo(
+          b.finishedAt ?? b.startedAt,
+        ),
+      );
+    for (final session in ordered) {
       var changed = false;
       for (final exercise in session.exercises) {
-        final top = exercise.bestDoneWeight;
+        final top = exercise.measurement == MeasurementType.weighted
+            ? exercise.bestDoneWeight
+            : 0.0;
         final previous = best[exercise.exerciseId] ?? 0;
         final pr = top > 0 && top > previous;
         if (exercise.weightPr != pr) {
@@ -243,23 +323,24 @@ class AppController extends ChangeNotifier with WidgetsBindingObserver {
       }
       if (changed) await store.put('session', session.toJson());
     }
-    await reload();
-    unawaited(sync());
-  }
-
-  Future<void> deleteSession(String id) async {
-    await store.remove(id);
-    await reload();
-    unawaited(sync());
   }
 
   double _roundToStep(double value, double step) =>
       step > 0 ? (value / step).round() * step : value.roundToDouble();
 
-  WorkoutSet _newSet(int target, double weight) =>
-      WorkoutSet(target: target, reps: target, weight: weight);
+  WorkoutSet _newSet(
+    int target,
+    double weight, [
+    MeasurementType measurement = MeasurementType.weighted,
+  ]) => WorkoutSet(
+    target: target,
+    reps: measurement == MeasurementType.timed ? 0 : target,
+    seconds: measurement == MeasurementType.timed ? target : 0,
+    weight: weight,
+  );
 
   Future<void> startQuickWorkout() async {
+    _requireUnlocked();
     if (active != null) throw StateError('Nejdřív dokonči rozepsaný trénink.');
     final workout = Workout(
       id: newId(),
@@ -273,22 +354,33 @@ class AppController extends ChangeNotifier with WidgetsBindingObserver {
   }
 
   Future<void> addExerciseToActive(String exerciseId) async {
+    _requireUnlocked();
     final workout = active;
     if (workout == null) throw StateError('Žádný rozepsaný trénink.');
     if (workout.exercises.any((item) => item.exerciseId == exerciseId)) {
       throw StateError('Cvik už je v tomto tréninku.');
     }
+    final measurement = exerciseMeasurement(exerciseId, customExercises);
     final lastWork = sessions
         .expand((session) => session.exercises)
-        .where((item) => item.exerciseId == exerciseId)
+        .where(
+          (item) =>
+              item.exerciseId == exerciseId && item.measurement == measurement,
+        )
         .expand((item) => item.workSets.where((set) => set.done))
         .firstOrNull;
     workout.exercises.add(
       WorkoutExercise(
         exerciseId: exerciseId,
+        measurement: measurement,
         sets: List.generate(
           3,
-          (_) => _newSet(lastWork?.target ?? 10, lastWork?.weight ?? 0),
+          (_) => _newSet(
+            lastWork?.target ??
+                (measurement == MeasurementType.timed ? 30 : 10),
+            lastWork?.weight ?? 0,
+            measurement,
+          ),
         ),
       ),
     );
@@ -297,29 +389,42 @@ class AppController extends ChangeNotifier with WidgetsBindingObserver {
   }
 
   Future<void> startPlan(Plan plan) async {
+    _requireUnlocked();
     if (active != null) throw StateError('Nejdřív dokonči rozepsaný trénink.');
     final exercises = plan.exercises.map((item) {
-      final targets = item.ruleType == 'repRange'
+      final targets =
+          item.measurement == MeasurementType.weighted &&
+              item.ruleType == 'repRange'
           ? List<int>.filled(item.targets.length, item.rangeMax)
           : List<int>.of(item.targets);
       return WorkoutExercise(
         exerciseId: item.exerciseId,
+        measurement: item.measurement,
         planExerciseId: item.id,
         rule: item.copy(),
+        extra: {
+          if (item.extra['supersetId'] != null)
+            'supersetId': item.extra['supersetId'],
+        },
         sets: [
           for (var i = 0; i < item.warmupSets; i++)
             WorkoutSet(
               target: 5,
-              reps: 5,
-              weight: item.weight > 0
+              reps: item.measurement == MeasurementType.timed ? 0 : 5,
+              seconds: item.measurement == MeasurementType.timed ? 5 : 0,
+              weight:
+                  item.measurement == MeasurementType.weighted &&
+                      item.weight > 0
                   ? _roundToStep(
                       item.weight * (i + 1) / (item.warmupSets + 1),
                       item.step,
                     )
-                  : 0,
+                  : item.measurement == MeasurementType.timed
+                  ? 0
+                  : item.weight,
               kind: 'warmup',
             ),
-          ...targets.map((t) => _newSet(t, item.weight)),
+          ...targets.map((t) => _newSet(t, item.weight, item.measurement)),
         ],
       );
     }).toList();
@@ -336,13 +441,17 @@ class AppController extends ChangeNotifier with WidgetsBindingObserver {
   }
 
   Future<void> startFromSession(Workout session) async {
+    _requireUnlocked();
     if (active != null) throw StateError('Nejdřív dokonči rozepsaný trénink.');
     final exercises = session.exercises
         .map(
           (item) => WorkoutExercise(
             exerciseId: item.exerciseId,
+            measurement: item.measurement,
             planExerciseId: item.planExerciseId,
             rule: item.rule?.copy(),
+            note: item.note,
+            extra: deepCopy(item.extra),
             sets: item.sets
                 .map(
                   (s) => WorkoutSet(
@@ -351,6 +460,7 @@ class AppController extends ChangeNotifier with WidgetsBindingObserver {
                     weight: s.weight,
                     rir: s.rir,
                     kind: s.kind,
+                    seconds: s.seconds,
                   ),
                 )
                 .toList(),
@@ -411,6 +521,7 @@ class AppController extends ChangeNotifier with WidgetsBindingObserver {
   }
 
   Future<void> discardActive() async {
+    _requireUnlocked();
     final workout = active;
     if (workout == null) return;
     _saveTimer?.cancel();
@@ -425,6 +536,7 @@ class AppController extends ChangeNotifier with WidgetsBindingObserver {
   }
 
   PlanExercise? _planItemFor(Plan plan, WorkoutExercise exercise) {
+    if (exercise.extra['detachedFromPlan'] == true) return null;
     for (final item in plan.exercises) {
       if (item.id == exercise.planExerciseId) return item;
     }
@@ -437,8 +549,11 @@ class AppController extends ChangeNotifier with WidgetsBindingObserver {
   }
 
   Future<List<Proposal>> finish() async {
+    _requireUnlocked();
     final workout = active;
     if (workout == null) return [];
+    final error = workout.validateCompleted();
+    if (error != null) throw StateError(error);
     await flushActive();
     final planId = workout.planId;
     final planRow = planId == null ? null : await store.get(planId);
@@ -446,6 +561,7 @@ class AppController extends ChangeNotifier with WidgetsBindingObserver {
     final proposals = <Proposal>[];
     if (plan != null) {
       for (final exercise in workout.exercises) {
+        if (exercise.measurement != MeasurementType.weighted) continue;
         final item = _planItemFor(plan, exercise);
         if (item == null) continue;
         final rule = exercise.rule ?? item;
@@ -464,19 +580,28 @@ class AppController extends ChangeNotifier with WidgetsBindingObserver {
             suggestedWeight: result.suggestedWeight,
             eligible: result.completed,
             reason: result.reason,
+            extra: {'ruleSnapshot': rule.toJson()},
           ),
         );
       }
     }
     final completed = workout.copy()
-      ..id = newId()
+      ..id = completedWorkoutId(workout.id)
       ..finishedAt = DateTime.now().toUtc()
       ..proposals = proposals;
     for (final exercise in completed.exercises) {
+      if (exercise.measurement != MeasurementType.weighted) {
+        exercise.weightPr = false;
+        continue;
+      }
       final currentBest = exercise.bestDoneWeight;
       final previousBest = sessions
           .expand((session) => session.exercises)
-          .where((item) => item.exerciseId == exercise.exerciseId)
+          .where(
+            (item) =>
+                item.exerciseId == exercise.exerciseId &&
+                item.measurement == MeasurementType.weighted,
+          )
           .fold<double>(
             0,
             (best, item) =>
@@ -498,42 +623,81 @@ class AppController extends ChangeNotifier with WidgetsBindingObserver {
     required bool accept,
     double? chosenWeight,
   }) async {
-    final row = await store.get(sessionId);
-    if (row == null) return 'Trénink už neexistuje.';
-    final session = Workout.fromJson(row);
-    final proposal = session.proposals
-        .where((item) => item.id == proposalId)
-        .firstOrNull;
-    if (proposal == null || proposal.status != 'pending') return null;
-    if (accept && proposal.eligible) {
-      final planRow = proposal.planId == null
-          ? null
-          : await store.get(proposal.planId!);
-      if (planRow != null) {
-        final plan = Plan.fromJson(planRow);
-        final item = plan.exercises
-            .where(
-              (e) =>
-                  e.id == (proposal.planExerciseId ?? proposal.exerciseId) ||
-                  (proposal.planExerciseId == null &&
-                      e.exerciseId == proposal.exerciseId),
-            )
-            .firstOrNull;
-        if (item != null) {
-          if (item.weight != proposal.ruleWeight) {
-            return 'Cíl cviku se mezitím změnil. Návrh už není aktuální.';
+    _requireUnlocked();
+    final error = await store.db.transaction<String?>(() async {
+      final row = await store.get(sessionId);
+      if (row == null) return 'Trénink už neexistuje.';
+      final session = Workout.fromJson(row);
+      final proposal = session.proposals
+          .where((item) => item.id == proposalId)
+          .firstOrNull;
+      if (proposal == null || proposal.status != 'pending') return null;
+      if (accept && !proposal.eligible) {
+        return 'Tento návrh nesplňuje pravidlo progrese.';
+      }
+      final nextWeight = chosenWeight ?? proposal.suggestedWeight;
+      if (accept && (!nextWeight.isFinite || nextWeight < 0)) {
+        return 'Váha musí být platné nezáporné číslo.';
+      }
+      if (accept && proposal.eligible) {
+        final planRow = proposal.planId == null
+            ? null
+            : await store.get(proposal.planId!);
+        if (planRow == null) return 'Plán už neexistuje.';
+        {
+          final plan = Plan.fromJson(planRow);
+          if (plan.archived) return 'Plán je archivovaný.';
+          final item = plan.exercises
+              .where(
+                (e) =>
+                    e.id == (proposal.planExerciseId ?? proposal.exerciseId) ||
+                    (proposal.planExerciseId == null &&
+                        e.exerciseId == proposal.exerciseId),
+              )
+              .firstOrNull;
+          if (item == null || item.exerciseId != proposal.exerciseId) {
+            return 'Cvik už není v plánu.';
           }
-          item.weight = chosenWeight ?? proposal.suggestedWeight;
-          await store.put('plan', plan.toJson());
+          {
+            final snapshot = proposal.extra['ruleSnapshot'];
+            final ruleChanged =
+                snapshot is Map &&
+                !_sameRule(
+                  item,
+                  PlanExercise.fromJson(Map<String, dynamic>.from(snapshot)),
+                );
+            if (item.weight != proposal.ruleWeight || ruleChanged) {
+              return 'Cíl cviku se mezitím změnil. Návrh už není aktuální.';
+            }
+            item.weight = chosenWeight ?? proposal.suggestedWeight;
+            await store.put('plan', plan.toJson());
+          }
         }
       }
-    }
-    proposal.status = accept ? 'accepted' : 'dismissed';
-    proposal.chosenWeight = chosenWeight;
-    await store.put('session', session.toJson());
+      proposal.status = accept ? 'accepted' : 'dismissed';
+      proposal.chosenWeight = accept ? nextWeight : null;
+      await store.put('session', session.toJson());
+      return null;
+    });
+    if (error != null) return error;
     await reload();
     unawaited(sync());
     return null;
+  }
+
+  bool _sameRule(PlanExercise a, PlanExercise b) =>
+      a.measurement == b.measurement &&
+      a.exerciseId == b.exerciseId &&
+      a.ruleType == b.ruleType &&
+      a.step == b.step &&
+      a.rangeMin == b.rangeMin &&
+      a.rangeMax == b.rangeMax &&
+      listEquals(a.targets, b.targets);
+
+  void _requireUnlocked() {
+    if (locked || _clearingLocalData) {
+      throw StateError('Data tohoto účtu jsou zamčená.');
+    }
   }
 
   User? get user =>
@@ -573,15 +737,43 @@ class AppController extends ChangeNotifier with WidgetsBindingObserver {
 
   /// Removes all data stored on this device (the cloud copy stays).
   Future<void> wipeLocalData() async {
-    _saveTimer?.cancel();
-    _saveTimer = null;
-    activeSaving = false;
-    saveError = null;
-    active = null;
-    await _writeTail.catchError((Object _) {});
-    await (_syncFuture ?? Future<void>.value()).catchError((Object _) {});
-    await store.wipeLocal();
-    conflicts = [];
+    _clearingLocalData = true;
+    try {
+      _syncTimer?.cancel();
+      _syncRequested = false;
+      locked = true;
+      _saveTimer?.cancel();
+      _saveTimer = null;
+      activeSaving = false;
+      saveError = null;
+      active = null;
+      await _writeTail.catchError((Object _) {});
+      await (_syncFuture ?? Future<void>.value()).catchError((Object _) {});
+      if (CloudSync.configured) {
+        await Supabase.instance.client.auth.signOut(scope: SignOutScope.local);
+      }
+      await store.wipeLocal();
+      conflicts = [];
+      await reload();
+    } finally {
+      _clearingLocalData = false;
+      await _refreshAccountState();
+      if (CloudSync.configured && !_disposed) {
+        _syncTimer = Timer.periodic(
+          const Duration(minutes: 1),
+          (_) => unawaited(sync()),
+        );
+      }
+    }
+  }
+
+  Future<void> selectActiveWorkout(String id) async {
+    if (active != null) await flushActive();
+    final row = await store.raw(id);
+    if (row == null || row['kind'] != 'active' || row['deleted'] == 1) {
+      throw StateError('Rozepsaný trénink už neexistuje.');
+    }
+    active = Workout.fromJson(await store.get(id) ?? {});
     await reload();
   }
 

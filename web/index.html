@@ -41,7 +41,7 @@
     For more details:
     * https://docs.flutter.dev/platform-integration/web/initialization
   -->
-  <script src="flutter_bootstrap.js" async></script>
+  <script src="app_bootstrap.js"></script>
   <script>
     (function () {
       function notice(text, buttonLabel, onClick) {
@@ -61,27 +61,23 @@
         return bar;
       }
 
-      // Jedno okno = jedna databáze. Dvě záložky by si přepisovaly IndexedDB.
-      if (navigator.locks) {
-        navigator.locks.request('athlete-os-tab', { ifAvailable: true }, function (lock) {
-          if (lock) return new Promise(function () {});
-          var cover = document.createElement('div');
-          cover.style.cssText = 'position:fixed;inset:0;z-index:100000;background:#101510;' +
-            'color:#e8ece5;font:17px sans-serif;display:flex;align-items:center;' +
-            'justify-content:center;text-align:center;padding:24px';
-          cover.textContent = 'Athlete OS je otevřený v jiném okně. ' +
-            'Zavři ho a načti tuto stránku znovu, aby se nepřepsala data.';
-          document.body.appendChild(cover);
-        });
-      }
-
       if ('serviceWorker' in navigator &&
           (location.protocol === 'https:' || location.hostname === 'localhost' ||
            location.hostname === '127.0.0.1')) {
         var hadController = !!navigator.serviceWorker.controller;
         navigator.serviceWorker.addEventListener('controllerchange', function () {
           if (hadController) {
-            notice('Je dostupná nová verze.', 'Načíst', function () { location.reload(); });
+            var bar = notice('Je dostupná nová verze.', 'Načíst', async function () {
+              try {
+                if (typeof window.athleteSaveBeforeUpdate !== 'function') {
+                  throw new Error('Aplikace ještě není připravená.');
+                }
+                await window.athleteSaveBeforeUpdate();
+                location.reload();
+              } catch (_) {
+                bar.firstChild.textContent = 'Nejdřív se musí podařit uložit trénink. Zkus aktualizaci znovu.';
+              }
+            });
             hadController = false;
           }
         });

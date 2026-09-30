@@ -4,6 +4,8 @@ import 'package:flutter/material.dart';
 
 import '../app_controller.dart';
 import '../models.dart';
+import '../supersets.dart';
+import '../workout_controls.dart';
 import 'common.dart';
 import 'exercise_picker.dart';
 
@@ -62,11 +64,12 @@ class _WorkoutPageState extends State<WorkoutPage> {
     setState(() {});
   }
 
-  WorkoutExercise? _previous(String exerciseId) => widget.app.sessions
+  WorkoutExercise? _previous(WorkoutExercise current) => widget.app.sessions
       .expand((s) => s.exercises)
       .where(
         (e) =>
-            e.exerciseId == exerciseId &&
+            e.exerciseId == current.exerciseId &&
+            e.measurement == current.measurement &&
             e.sets.any((s) => s.done && s.kind == 'work'),
       )
       .firstOrNull;
@@ -74,24 +77,9 @@ class _WorkoutPageState extends State<WorkoutPage> {
   Future<void> _finish() async {
     setState(() => finishing = true);
     try {
-      final done = workout.exercises.expand((e) => e.sets).where((s) => s.done);
-      final invalid = done.any(
-        (s) =>
-            s.reps < 1 ||
-            s.weight < 0 ||
-            (s.rir != null && (s.rir! < 0 || s.rir! > 10)),
-      );
-      if (invalid) {
-        toast(context, 'Oprav opakování, váhu nebo RIR u dokončené série.');
-        return;
-      }
-      if (!workout.exercises.any(
-        (exercise) => exercise.workSets.any((set) => set.done),
-      )) {
-        toast(
-          context,
-          'Zapiš alespoň jednu pracovní sérii, nebo trénink zruš.',
-        );
+      final error = workout.validateCompleted();
+      if (error != null) {
+        toast(context, error);
         return;
       }
       final incomplete = workout.exercises
@@ -140,6 +128,50 @@ class _WorkoutPageState extends State<WorkoutPage> {
       if (mounted) {
         toast(context, 'Cvik zatím není uložený. Zkus uložení znovu.');
       }
+    }
+  }
+
+  Future<void> _editExercise(WorkoutExercise exercise, String action) async {
+    try {
+      if (action == 'replace') {
+        if (exercise.sets.any((set) => set.done)) {
+          toast(
+            context,
+            'Cvik má dokončené série. Alternativu přidej jako nový cvik.',
+          );
+          return;
+        }
+        final id = await Navigator.push<String>(
+          context,
+          MaterialPageRoute(builder: (_) => ExercisePicker(app: widget.app)),
+        );
+        if (id == null || !mounted) return;
+        await widget.app.replaceActiveExercise(exercise, id);
+      } else if (action == 'remove') {
+        final hasCompleted = exercise.sets.any((set) => set.done);
+        if (hasCompleted &&
+            !await confirmDialog(
+              context,
+              title: 'Odebrat cvik i se sériemi?',
+              body: 'Dokončené série tohoto cviku se smažou z rozepsaného tréninku.',
+              confirmLabel: 'Odebrat cvik',
+            )) {
+          return;
+        }
+        if (!mounted) return;
+        await widget.app.removeActiveExercise(
+          exercise,
+          discardCompletedSets: hasCompleted,
+        );
+      } else {
+        await widget.app.moveActiveExercise(exercise, action == 'up' ? -1 : 1);
+      }
+    } on StateError catch (error) {
+      if (mounted) toast(context, error.message);
+    } catch (_) {
+      if (mounted) toast(context, 'Změna čeká na uložení. Zkus uložení znovu.');
+    } finally {
+      if (mounted) setState(() {});
     }
   }
 
@@ -207,8 +239,15 @@ class _WorkoutPageState extends State<WorkoutPage> {
             ),
             app: app,
             exercise: exercise,
-            previous: _previous(exercise.exerciseId),
-            onSetDone: startRest,
+            previous: _previous(exercise),
+            onSetDone: () {
+              if (shouldRestAfterSet(w, exercise)) startRest();
+            },
+            onAction: finishing
+                ? null
+                : (action) => _editExercise(exercise, action),
+            canMoveUp: w.exercises.first != exercise,
+            canMoveDown: w.exercises.last != exercise,
           ),
         OutlinedButton.icon(
           onPressed: finishing ? null : _addExercise,
@@ -236,12 +275,18 @@ class _ExerciseCard extends StatefulWidget {
   final WorkoutExercise exercise;
   final WorkoutExercise? previous;
   final VoidCallback onSetDone;
+  final ValueChanged<String>? onAction;
+  final bool canMoveUp;
+  final bool canMoveDown;
   const _ExerciseCard({
     super.key,
     required this.app,
     required this.exercise,
     required this.previous,
     required this.onSetDone,
+    required this.onAction,
+    required this.canMoveUp,
+    required this.canMoveDown,
   });
 
   @override
@@ -260,15 +305,47 @@ class _ExerciseCardState extends State<_ExerciseCard> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              exerciseName(exercise.exerciseId, app.customExercises),
-              style: Theme.of(context).textTheme.titleLarge,
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    exerciseName(exercise.exerciseId, app.customExercises),
+                    style: Theme.of(context).textTheme.titleLarge,
+                  ),
+                ),
+                PopupMenuButton<String>(
+                  key: ValueKey('controls-${exercise.exerciseId}'),
+                  tooltip: 'Upravit cvik v tréninku',
+                  enabled: widget.onAction != null,
+                  onSelected: widget.onAction,
+                  itemBuilder: (_) => [
+                    const PopupMenuItem(
+                      value: 'replace',
+                      child: Text('Nahradit cvik'),
+                    ),
+                    PopupMenuItem(
+                      value: 'up',
+                      enabled: widget.canMoveUp,
+                      child: const Text('Posunout nahoru'),
+                    ),
+                    PopupMenuItem(
+                      value: 'down',
+                      enabled: widget.canMoveDown,
+                      child: const Text('Posunout dolů'),
+                    ),
+                    const PopupMenuItem(
+                      value: 'remove',
+                      child: Text('Odebrat cvik'),
+                    ),
+                  ],
+                ),
+              ],
             ),
             const SizedBox(height: 4),
             Text(
               previous == null
                   ? 'První záznam'
-                  : 'Minule: ${previous.workSets.where((s) => s.done).map((s) => '${fmtNum(s.weight)} kg × ${s.reps}').join(' · ')}',
+                  : 'Minule: ${previous.workSets.where((s) => s.done).map((s) => setMeasurementLabel(s, exercise.measurement)).join(' · ')}',
             ),
             const SizedBox(height: 8),
             TextFormField(
@@ -285,6 +362,7 @@ class _ExerciseCardState extends State<_ExerciseCard> {
                 key: ObjectKey(exercise.sets[j]),
                 index: j,
                 set: exercise.sets[j],
+                measurement: exercise.measurement,
                 showRir: app.mode != 'Simple',
                 onChanged: app.touchActive,
                 onDone: (done) {
@@ -308,7 +386,12 @@ class _ExerciseCardState extends State<_ExerciseCard> {
                   () => exercise.sets.add(
                     WorkoutSet(
                       target: lastWork?.target ?? 10,
-                      reps: lastWork?.target ?? 10,
+                      reps: exercise.measurement == MeasurementType.timed
+                          ? 0
+                          : lastWork?.target ?? 10,
+                      seconds: exercise.measurement == MeasurementType.timed
+                          ? lastWork?.target ?? 30
+                          : 0,
                       weight: lastWork?.weight ?? 0,
                     ),
                   ),
@@ -325,8 +408,9 @@ class _ExerciseCardState extends State<_ExerciseCard> {
   }
 }
 
-class SetRow extends StatelessWidget {
+class SetRow extends StatefulWidget {
   final int index;
+  final MeasurementType measurement;
   final WorkoutSet set;
   final bool showRir;
   final VoidCallback onChanged;
@@ -335,6 +419,7 @@ class SetRow extends StatelessWidget {
   const SetRow({
     super.key,
     required this.index,
+    this.measurement = MeasurementType.weighted,
     required this.set,
     required this.showRir,
     required this.onChanged,
@@ -343,81 +428,162 @@ class SetRow extends StatelessWidget {
   });
 
   @override
-  Widget build(BuildContext context) => Padding(
-    padding: const EdgeInsets.symmetric(vertical: 4),
-    child: Column(
-      children: [
-        Row(
-          children: [
-            SizedBox(
-              width: 52,
-              child: Text(
-                set.kind == 'warmup'
-                    ? 'R ${index + 1}'
-                    : '${index + 1}. / ${set.target}',
-              ),
-            ),
-            Expanded(
-              child: TextFormField(
-                initialValue: fmtNum(set.weight),
-                keyboardType: const TextInputType.numberWithOptions(
-                  decimal: true,
-                ),
-                decoration: const InputDecoration(labelText: 'kg'),
-                onChanged: (v) {
-                  set.weight = parseNum(v) ?? 0;
-                  onChanged();
-                },
-              ),
-            ),
-            const SizedBox(width: 8),
-            SizedBox(
-              width: 68,
-              child: TextFormField(
-                initialValue: '${set.reps}',
-                keyboardType: TextInputType.number,
-                decoration: const InputDecoration(labelText: 'reps'),
-                onChanged: (v) {
-                  set.reps = int.tryParse(v) ?? 0;
-                  onChanged();
-                },
-              ),
-            ),
-            Semantics(
-              label: 'Dokončeno série ${index + 1}',
-              child: Checkbox(
-                value: set.done,
-                onChanged: (value) => onDone(value == true),
-              ),
-            ),
-          ],
-        ),
-        Row(
-          children: [
-            const SizedBox(width: 52),
-            if (showRir)
+  State<SetRow> createState() => _SetRowState();
+}
+
+class _SetRowState extends State<SetRow> {
+  late String weightText = fmtNum(widget.set.weight);
+  late String repsText = '${widget.set.reps}';
+  late String secondsText = '${widget.set.seconds}';
+  late String rirText = widget.set.rir?.toString() ?? '';
+  bool validate = false;
+
+  String? get weightError {
+    if (widget.measurement == MeasurementType.bodyweight &&
+        weightText.trim().isEmpty) {
+      return null;
+    }
+    final value = parseNum(weightText);
+    return value == null || !value.isFinite || value < 0
+        ? 'Zadej váhu ≥ 0'
+        : null;
+  }
+
+  String? get repsError {
+    final value = int.tryParse(repsText);
+    return value == null || value < 1 ? 'Alespoň 1' : null;
+  }
+
+  String? get rirError {
+    if (rirText.trim().isEmpty) return null;
+    final value = int.tryParse(rirText);
+    return value == null || value < 0 || value > 10 ? 'RIR 0 až 10' : null;
+  }
+
+  String? get secondsError =>
+      (int.tryParse(secondsText) ?? 0) < 1 ? 'Alespoň 1 s' : null;
+  bool get valid => widget.measurement == MeasurementType.timed
+      ? secondsError == null
+      : weightError == null && repsError == null && rirError == null;
+
+  void edited() {
+    setState(() => validate = true);
+    if (!valid && widget.set.done) widget.onDone(false);
+    widget.onChanged();
+  }
+
+  void toggleDone(bool done) {
+    setState(() => validate = true);
+    if (!done || valid) widget.onDone(done);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final set = widget.set;
+    final index = widget.index;
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Column(
+        children: [
+          Row(
+            children: [
               SizedBox(
-                width: 64,
+                width: 52,
+                child: Text(
+                  set.kind == 'warmup'
+                      ? 'R ${index + 1}'
+                      : '${index + 1}. / ${set.target}',
+                ),
+              ),
+              if (widget.measurement != MeasurementType.timed)
+                Expanded(
+                  child: TextFormField(
+                    initialValue: weightText,
+                    keyboardType: const TextInputType.numberWithOptions(
+                      decimal: true,
+                    ),
+                    decoration: InputDecoration(
+                      labelText: widget.measurement.weightLabel,
+                      errorText: validate ? weightError : null,
+                    ),
+                    onChanged: (v) {
+                      weightText = v;
+                      final value = parseNum(v);
+                      set.weight = value != null && value.isFinite ? value : 0;
+                      edited();
+                    },
+                  ),
+                ),
+              const SizedBox(width: 8),
+              SizedBox(
+                width: 68,
                 child: TextFormField(
-                  initialValue: set.rir?.toString() ?? '',
+                  initialValue: widget.measurement == MeasurementType.timed
+                      ? secondsText
+                      : repsText,
                   keyboardType: TextInputType.number,
-                  decoration: const InputDecoration(labelText: 'RIR'),
+                  decoration: InputDecoration(
+                    labelText: widget.measurement == MeasurementType.timed
+                        ? 'sekundy'
+                        : 'reps',
+                    errorText: validate
+                        ? (widget.measurement == MeasurementType.timed
+                              ? secondsError
+                              : repsError)
+                        : null,
+                  ),
                   onChanged: (v) {
-                    set.rir = int.tryParse(v);
-                    onChanged();
+                    if (widget.measurement == MeasurementType.timed) {
+                      secondsText = v;
+                      set.seconds = int.tryParse(v) ?? 0;
+                    } else {
+                      repsText = v;
+                      set.reps = int.tryParse(v) ?? 0;
+                    }
+                    edited();
                   },
                 ),
               ),
-            const Spacer(),
-            IconButton(
-              tooltip: 'Odebrat sérii',
-              onPressed: onRemove,
-              icon: const Icon(Icons.close, size: 18),
-              visualDensity: VisualDensity.compact,
-            ),
-          ],
-        ),
-      ],
-    ),
-  );
+              Semantics(
+                label: 'Dokončeno série ${index + 1}',
+                child: Checkbox(
+                  value: set.done,
+                  onChanged: (value) => toggleDone(value == true),
+                ),
+              ),
+            ],
+          ),
+          Row(
+            children: [
+              const SizedBox(width: 52),
+              if (widget.showRir && widget.measurement != MeasurementType.timed)
+                SizedBox(
+                  width: 64,
+                  child: TextFormField(
+                    initialValue: rirText,
+                    keyboardType: TextInputType.number,
+                    decoration: InputDecoration(
+                      labelText: 'RIR',
+                      errorText: validate ? rirError : null,
+                    ),
+                    onChanged: (v) {
+                      rirText = v;
+                      set.rir = int.tryParse(v);
+                      edited();
+                    },
+                  ),
+                ),
+              const Spacer(),
+              IconButton(
+                tooltip: 'Odebrat sérii',
+                onPressed: widget.onRemove,
+                icon: const Icon(Icons.close, size: 18),
+                visualDensity: VisualDensity.compact,
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
 }

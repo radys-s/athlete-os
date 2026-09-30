@@ -89,6 +89,7 @@ class _HistoryDetailPageState extends State<HistoryDetailPage> {
                         key: ObjectKey(exercise.sets[j]),
                         index: j,
                         set: exercise.sets[j],
+                        measurement: exercise.measurement,
                         showRir: app.mode != 'Simple',
                         onChanged: () {},
                         onDone: (done) =>
@@ -103,7 +104,14 @@ class _HistoryDetailPageState extends State<HistoryDetailPage> {
                           () => exercise.sets.add(
                             WorkoutSet(
                               target: last?.target ?? 10,
-                              reps: last?.reps ?? 10,
+                              reps:
+                                  exercise.measurement == MeasurementType.timed
+                                  ? 0
+                                  : last?.reps ?? 10,
+                              seconds:
+                                  exercise.measurement == MeasurementType.timed
+                                  ? last?.seconds ?? 30
+                                  : 0,
                               weight: last?.weight ?? 0,
                               done: true,
                             ),

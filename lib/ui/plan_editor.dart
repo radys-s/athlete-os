@@ -4,6 +4,7 @@ import '../app_controller.dart';
 import '../models.dart';
 import 'common.dart';
 import 'exercise_picker.dart';
+import 'superset_editor.dart';
 
 class PlanEditor extends StatefulWidget {
   final AppController app;
@@ -37,7 +38,18 @@ class _PlanEditorState extends State<PlanEditor> {
       return;
     }
     setState(
-      () => plan.exercises.add(PlanExercise(id: newId(), exerciseId: id)),
+      () => plan.exercises.add(
+        PlanExercise(
+          id: newId(),
+          exerciseId: id,
+          measurement: exerciseMeasurement(id, widget.app.customExercises),
+          targets:
+              exerciseMeasurement(id, widget.app.customExercises) ==
+                  MeasurementType.timed
+              ? [30, 30, 30]
+              : null,
+        ),
+      ),
     );
   }
 
@@ -46,15 +58,25 @@ class _PlanEditorState extends State<PlanEditor> {
     plan.exercises.insert(to, moved);
   });
 
+  bool saving = false;
+
   Future<void> save() async {
+    if (saving) return;
     plan.name = name.text.trim();
     final error = plan.validate();
     if (error != null) {
       toast(context, error);
       return;
     }
-    await widget.app.savePlan(plan);
-    if (mounted) Navigator.pop(context);
+    setState(() => saving = true);
+    try {
+      await widget.app.savePlan(plan);
+      if (mounted) Navigator.pop(context);
+    } catch (error) {
+      if (mounted) toast(context, 'Plán se nepodařilo uložit: $error');
+    } finally {
+      if (mounted) setState(() => saving = false);
+    }
   }
 
   @override
@@ -62,34 +84,42 @@ class _PlanEditorState extends State<PlanEditor> {
     final items = plan.exercises;
     return Scaffold(
       appBar: AppBar(title: const Text('Tréninkový plán')),
-      body: ListView(
-        padding: const EdgeInsets.all(16),
-        children: [
-          TextField(
-            controller: name,
-            decoration: const InputDecoration(labelText: 'Název plánu'),
-          ),
-          const SizedBox(height: 18),
-          for (var i = 0; i < items.length; i++)
-            _ItemEditor(
-              key: ValueKey(items[i].id),
-              item: items[i],
-              title: exerciseName(
-                items[i].exerciseId,
-                widget.app.customExercises,
-              ),
-              onUp: i == 0 ? null : () => move(i, i - 1),
-              onDown: i == items.length - 1 ? null : () => move(i, i + 1),
-              onRemove: () => setState(() => items.removeAt(i)),
+      body: AbsorbPointer(
+        absorbing: saving,
+        child: ListView(
+          padding: const EdgeInsets.all(16),
+          children: [
+            TextField(
+              controller: name,
+              decoration: const InputDecoration(labelText: 'Název plánu'),
             ),
-          OutlinedButton.icon(
-            onPressed: addExercise,
-            icon: const Icon(Icons.add),
-            label: const Text('Přidat cvik'),
-          ),
-          const SizedBox(height: 12),
-          FilledButton(onPressed: save, child: const Text('Uložit plán')),
-        ],
+            const SizedBox(height: 18),
+            for (var i = 0; i < items.length; i++)
+              _ItemEditor(
+                key: ValueKey(items[i].id),
+                item: items[i],
+                title: exerciseName(
+                  items[i].exerciseId,
+                  widget.app.customExercises,
+                ),
+                onUp: i == 0 ? null : () => move(i, i - 1),
+                onDown: i == items.length - 1 ? null : () => move(i, i + 1),
+                onRemove: () => setState(() => items.removeAt(i)),
+              ),
+            SupersetEditor(
+              widget.app,
+              plan: plan,
+              onChanged: () => setState(() {}),
+            ),
+            OutlinedButton.icon(
+              onPressed: addExercise,
+              icon: const Icon(Icons.add),
+              label: const Text('Přidat cvik'),
+            ),
+            const SizedBox(height: 12),
+            FilledButton(onPressed: save, child: const Text('Uložit plán')),
+          ],
+        ),
       ),
     );
   }
@@ -146,7 +176,9 @@ class _ItemEditorState extends State<_ItemEditor> {
 
   @override
   Widget build(BuildContext context) {
-    final range = item.ruleType == 'repRange';
+    final range =
+        item.measurement == MeasurementType.weighted &&
+        item.ruleType == 'repRange';
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(14),
@@ -178,25 +210,33 @@ class _ItemEditorState extends State<_ItemEditor> {
                 ),
               ],
             ),
-            DropdownButtonFormField<String>(
-              initialValue: item.ruleType,
-              decoration: const InputDecoration(labelText: 'Pravidlo progrese'),
-              items: const [
-                DropdownMenuItem(
-                  value: 'fixed',
-                  child: Text('Pevné cíle sérií'),
+            Text(item.measurement.label),
+            if (item.measurement != MeasurementType.weighted)
+              const Text(
+                'Cíle nastav ručně. Automatická progrese váhy se nepoužívá.',
+              ),
+            if (item.measurement == MeasurementType.weighted)
+              DropdownButtonFormField<String>(
+                initialValue: item.ruleType,
+                decoration: const InputDecoration(
+                  labelText: 'Pravidlo progrese',
                 ),
-                DropdownMenuItem(
-                  value: 'repRange',
-                  child: Text('Rozsah opakování'),
-                ),
-              ],
-              onChanged: (value) => setState(() {
-                item.ruleType = value ?? 'fixed';
-                if (item.ruleType == 'repRange') item.syncTargetsToRange();
-                targets.text = item.targets.join(', ');
-              }),
-            ),
+                items: const [
+                  DropdownMenuItem(
+                    value: 'fixed',
+                    child: Text('Pevné cíle sérií'),
+                  ),
+                  DropdownMenuItem(
+                    value: 'repRange',
+                    child: Text('Rozsah opakování'),
+                  ),
+                ],
+                onChanged: (value) => setState(() {
+                  item.ruleType = value ?? 'fixed';
+                  if (item.ruleType == 'repRange') item.syncTargetsToRange();
+                  targets.text = item.targets.join(', ');
+                }),
+              ),
             const SizedBox(height: 6),
             Row(
               children: [
@@ -237,8 +277,10 @@ class _ItemEditorState extends State<_ItemEditor> {
               ],
             ),
             if (item.warmupSets > 0)
-              const Text(
-                'Rozcvičovací váha je jen orientační a lze ji v tréninku změnit.',
+              Text(
+                item.measurement == MeasurementType.weighted
+                    ? 'Rozcvičovací váha je jen orientační a lze ji v tréninku změnit.'
+                    : 'Rozcvičovací cíle lze v tréninku změnit.',
               ),
             if (range)
               Wrap(
@@ -275,35 +317,45 @@ class _ItemEditorState extends State<_ItemEditor> {
             Wrap(
               spacing: 12,
               children: [
-                SizedBox(
-                  width: 130,
-                  child: TextField(
-                    controller: weight,
-                    keyboardType: const TextInputType.numberWithOptions(
-                      decimal: true,
+                if (item.measurement != MeasurementType.timed)
+                  SizedBox(
+                    width: 130,
+                    child: TextField(
+                      controller: weight,
+                      keyboardType: const TextInputType.numberWithOptions(
+                        decimal: true,
+                      ),
+                      decoration: InputDecoration(
+                        labelText: item.measurement.weightLabel,
+                      ),
+                      onChanged: (v) => item.weight =
+                          item.measurement == MeasurementType.bodyweight &&
+                              v.trim().isEmpty
+                          ? 0
+                          : parseNum(v) ?? double.nan,
                     ),
-                    decoration: const InputDecoration(labelText: 'Váha (kg)'),
-                    onChanged: (v) => item.weight = parseNum(v) ?? 0,
                   ),
-                ),
-                SizedBox(
-                  width: 130,
-                  child: TextField(
-                    controller: step,
-                    keyboardType: const TextInputType.numberWithOptions(
-                      decimal: true,
+                if (item.measurement == MeasurementType.weighted)
+                  SizedBox(
+                    width: 130,
+                    child: TextField(
+                      controller: step,
+                      keyboardType: const TextInputType.numberWithOptions(
+                        decimal: true,
+                      ),
+                      decoration: const InputDecoration(labelText: 'Krok (kg)'),
+                      onChanged: (v) => item.step = parseNum(v) ?? 0,
                     ),
-                    decoration: const InputDecoration(labelText: 'Krok (kg)'),
-                    onChanged: (v) => item.step = parseNum(v) ?? 0,
                   ),
-                ),
               ],
             ),
             if (!range)
               TextField(
                 controller: targets,
-                decoration: const InputDecoration(
-                  labelText: 'Cíle sérií (např. 12, 10, 8)',
+                decoration: InputDecoration(
+                  labelText: item.measurement == MeasurementType.timed
+                      ? 'Cíle sérií v sekundách (např. 30, 30, 30)'
+                      : 'Cíle sérií (např. 12, 10, 8)',
                 ),
                 onChanged: (value) {
                   final parsed = value

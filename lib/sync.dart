@@ -47,14 +47,21 @@ class SupabaseRemote implements RemoteApi {
   @override
   Future<List<Map<String, dynamic>>> pull({String? since}) async {
     final rows = <Map<String, dynamic>>[];
-    for (var from = 0; ; from += 500) {
-      var query = client.from('user_entities').select().eq('user_id', userId!);
+    String? afterId;
+    final account = userId;
+    if (account == null) return [];
+    while (true) {
+      var query = client.from('user_entities').select().eq('user_id', account);
       if (since != null) query = query.gte('updated_at', since);
-      final page =
-          (await query.order('updated_at').order('id').range(from, from + 499))
-              .cast<Map<String, dynamic>>();
+      if (afterId != null) query = query.gt('id', afterId);
+      final page = (await query.order('id').limit(500))
+          .cast<Map<String, dynamic>>();
+      if (userId != account) {
+        throw StateError('Účet se během synchronizace změnil.');
+      }
       rows.addAll(page);
       if (page.length < 500) break;
+      afterId = page.last['id'] as String;
     }
     return rows;
   }
@@ -113,17 +120,21 @@ class CloudSync {
     if (userId == null) return;
     await store.bindAccount(userId);
 
-    final cursor = await store.meta('last_pull_at');
-    final since = cursor == null
-        ? null
-        : DateTime.parse(cursor)
-              .subtract(cursorOverlap)
-              .toUtc()
-              .toIso8601String();
-    final pulled = await api.pull(since: since);
+    // V1 favors a complete, stable-ID reconciliation over a timestamp cursor:
+    // server transaction timestamps need not follow commit order. A finite
+    // overlap cannot guarantee that a late commit will ever be downloaded.
+    final pulled = await api.pull();
+    void requireSameAccount() {
+      if (api.userId != userId) {
+        throw StateError('Účet se během synchronizace změnil.');
+      }
+    }
+
+    requireSameAccount();
     final byId = {for (final item in pulled) item['id'] as String: item};
     String? newest;
     for (final item in pulled) {
+      requireSameAccount();
       final id = item['id'] as String;
       final stamp = item['updated_at'] as String;
       if (newest == null ||
@@ -151,6 +162,7 @@ class CloudSync {
     }
 
     for (final local in await store.dirtyRows()) {
+      requireSameAccount();
       final id = local['id'] as String;
       final server = byId[id];
       if (server != null && local['remote_revision'] == 0) {
@@ -175,6 +187,7 @@ class CloudSync {
         deleted: local['deleted'] == 1,
         expectedRevision: local['remote_revision'] as int,
       );
+      requireSameAccount();
       if (value['conflict'] == true) {
         await store.markConflict(id);
       } else {

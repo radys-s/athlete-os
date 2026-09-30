@@ -12,6 +12,14 @@ ProgressionResult evaluateProgression(
   Map<String, dynamic> exercise,
   List<Map<String, dynamic>> performed,
 ) {
+  if (MeasurementType.parse(exercise['measurement']) !=
+      MeasurementType.weighted) {
+    return ProgressionResult(
+      false,
+      'Tento typ měření nepoužívá automatický návrh váhy.',
+      (exercise['weight'] as num?)?.toDouble() ?? 0,
+    );
+  }
   final targets = (exercise['targets'] as List<dynamic>).cast<num>();
   final currentWeight = (exercise['weight'] as num).toDouble();
   final step = (exercise['step'] as num).toDouble();
@@ -77,10 +85,35 @@ double? estimatedOneRepMax(double weight, int reps) {
   return weight * (1 + reps / 30);
 }
 
+/// Comparable within a single measurement type; assistance improves downward.
+double? bestCompletedMeasurement(WorkoutExercise exercise) {
+  final sets = exercise.workSets.where((s) => s.done);
+  double? best;
+  for (final set in sets) {
+    final value = switch (exercise.measurement) {
+      MeasurementType.weighted || MeasurementType.assisted => set.weight,
+      MeasurementType.bodyweight => set.reps.toDouble(),
+      MeasurementType.timed => set.seconds.toDouble(),
+    };
+    if (!value.isFinite || value < 0) continue;
+    if (best == null ||
+        (exercise.measurement == MeasurementType.assisted
+            ? value < best
+            : value > best)) {
+      best = value;
+    }
+  }
+  return best;
+}
+
 double completedVolume(List<Map<String, dynamic>> sessions) {
   var total = 0.0;
   for (final session in sessions) {
     for (final exercise in asMaps(session['exercises'])) {
+      if (MeasurementType.parse(exercise['measurement']) !=
+          MeasurementType.weighted) {
+        continue;
+      }
       for (final set in asMaps(exercise['sets'])) {
         if (set['done'] == true && set['kind'] != 'warmup') {
           total +=
