@@ -109,10 +109,6 @@ class CloudSync {
 
   RemoteApi get remote => _remote ?? SupabaseRemote();
 
-  /// Pulls overlap the previous cursor a bit so a row committed late with an
-  /// older `updated_at` is not missed.
-  static const cursorOverlap = Duration(minutes: 2);
-
   Future<void> sync() async {
     if (_remote == null && !configured) return;
     final api = remote;
@@ -132,15 +128,10 @@ class CloudSync {
 
     requireSameAccount();
     final byId = {for (final item in pulled) item['id'] as String: item};
-    String? newest;
     for (final item in pulled) {
       requireSameAccount();
       final id = item['id'] as String;
       final stamp = item['updated_at'] as String;
-      if (newest == null ||
-          DateTime.parse(stamp).isAfter(DateTime.parse(newest))) {
-        newest = stamp;
-      }
       final local = await store.raw(id);
       if (local == null || local['dirty'] == 0) {
         await store.importRemote(item);
@@ -200,8 +191,7 @@ class CloudSync {
         );
       }
     }
-    // The cursor moves only after every pulled row has been processed.
-    if (newest != null) await store.setMeta('last_pull_at', newest);
+    await store.setMeta('last_sync_at', DateTime.now().toUtc().toIso8601String());
   }
 
   Future<List<Map<String, dynamic>>> conflicts() async {

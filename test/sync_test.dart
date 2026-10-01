@@ -122,7 +122,7 @@ void main() {
       remote.remoteEdit('p1', {'id': 'p1', 'name': 'One'});
       await sync.sync();
       expect(remote.pullSinces.last, isNull); // first sync = full pull
-      expect(await store.meta('last_pull_at'), isNotNull);
+      expect(await store.meta('last_sync_at'), isNotNull);
 
       remote.remoteEdit('p2', {'id': 'p2', 'name': 'Two'});
       await sync.sync();

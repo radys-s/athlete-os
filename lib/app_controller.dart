@@ -188,7 +188,6 @@ class AppController extends ChangeNotifier with WidgetsBindingObserver {
     bool? finishOnboarding,
   }) async {
     _requireUnlocked();
-    _requireUnlocked();
     final existing = await store.get('settings');
     final nextMode = newMode ?? mode;
     final nextLayout = newLayout ?? layout;
