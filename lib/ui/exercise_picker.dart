@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 
 import '../app_controller.dart';
 import '../models.dart';
+import '../sync.dart';
+import 'common.dart';
 import 'scan_page.dart';
 
 class ExercisePicker extends StatefulWidget {
@@ -98,14 +100,22 @@ class _ExercisePickerState extends State<ExercisePicker> {
         ),
       ),
     );
-    if (result == true && name.text.trim().isNotEmpty) {
-      await widget.app.saveExercise(
-        name.text,
-        muscle,
-        tool,
-        measurement: measurement,
-      );
-      if (mounted) setState(() {});
+    if (result == true && name.text.trim().isEmpty && mounted) {
+      toast(context, 'Cvik potřebuje název.');
+    } else if (result == true) {
+      try {
+        await widget.app.saveExercise(
+          name.text,
+          muscle,
+          tool,
+          measurement: measurement,
+        );
+        if (mounted) setState(() {});
+      } catch (error) {
+        if (mounted) {
+          toast(context, 'Cvik se nepodařilo uložit: ${errorText(error)}');
+        }
+      }
     }
     name.dispose();
   }
@@ -115,9 +125,7 @@ class _ExercisePickerState extends State<ExercisePicker> {
     final exercises = [...builtInExercises, ...widget.app.customExercises]
         .where(
           (e) =>
-              (e['name'] as String).toLowerCase().contains(
-                query.toLowerCase(),
-              ) &&
+              exerciseMatches(e, query) &&
               (muscleFilter == 'Vše' || e['muscle'] == muscleFilter) &&
               (equipmentFilter == 'Vše' || e['equipment'] == equipmentFilter),
         )
@@ -173,6 +181,14 @@ class _ExercisePickerState extends State<ExercisePicker> {
           Expanded(
             child: ListView(
               children: [
+                if (exercises.isEmpty)
+                  const Padding(
+                    padding: EdgeInsets.all(24),
+                    child: Text(
+                      'Nic nenalezeno. Zkus jiný název nebo vytvoř vlastní cvik.',
+                      textAlign: TextAlign.center,
+                    ),
+                  ),
                 for (final exercise in exercises)
                   ListTile(
                     title: Text(exercise['name'] as String),
@@ -199,24 +215,26 @@ class _ExercisePickerState extends State<ExercisePicker> {
                   label: const Text('Vlastní cvik'),
                 ),
               ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: OutlinedButton.icon(
-                  onPressed: () async {
-                    final id = await Navigator.push<String>(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => ScanPage(app: widget.app),
-                      ),
-                    );
-                    if (id != null && context.mounted) {
-                      Navigator.pop(context, id);
-                    }
-                  },
-                  icon: const Icon(Icons.camera_alt_outlined),
-                  label: const Text('Sken stroje'),
+              if (scanApiUrl.isNotEmpty) ...[
+                const SizedBox(width: 8),
+                Expanded(
+                  child: OutlinedButton.icon(
+                    onPressed: () async {
+                      final id = await Navigator.push<String>(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => ScanPage(app: widget.app),
+                        ),
+                      );
+                      if (id != null && context.mounted) {
+                        Navigator.pop(context, id);
+                      }
+                    },
+                    icon: const Icon(Icons.camera_alt_outlined),
+                    label: const Text('Sken stroje'),
+                  ),
                 ),
-              ),
+              ],
             ],
           ),
         ),

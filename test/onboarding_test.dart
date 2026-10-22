@@ -93,8 +93,9 @@ class _FailSettingsStore extends LocalStore {
     String kind,
     Map<String, dynamic> data, {
     bool dirty = true,
+    bool reviveDeleted = true,
   }) {
     if (kind == 'settings') throw StateError('disk full');
-    return super.put(kind, data, dirty: dirty);
+    return super.put(kind, data, dirty: dirty, reviveDeleted: reviveDeleted);
   }
 }

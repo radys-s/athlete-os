@@ -1,10 +1,16 @@
 import 'package:flutter/material.dart';
 
-/// 42.5 -> "42.5", 40.0 -> "40".
-String fmtNum(num value) {
-  final d = value.toDouble();
-  return d == d.roundToDouble() ? d.toStringAsFixed(0) : d.toString();
-}
+import '../models.dart';
+
+/// 42.5 -> "42,5", 40.0 -> "40".
+String fmtNum(num value) => formatNumber(value);
+
+/// User-facing text of a caught error without Dart's "Bad state:" prefix.
+String errorText(Object error) => switch (error) {
+  StateError(:final message) => message,
+  FormatException(:final message) => message,
+  _ => '$error',
+};
 
 double? parseNum(String text) {
   final value = double.tryParse(text.trim().replaceAll(',', '.'));
@@ -54,4 +60,10 @@ String formatTime(DateTime value) {
   final l = value.toLocal();
   String two(int n) => n.toString().padLeft(2, '0');
   return '${two(l.hour)}:${two(l.minute)}';
+}
+
+/// 75 -> "1:15", 45 -> "45 s".
+String formatSeconds(int seconds) {
+  if (seconds < 60) return '$seconds s';
+  return '${seconds ~/ 60}:${(seconds % 60).toString().padLeft(2, '0')}';
 }

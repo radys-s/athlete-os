@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../app_controller.dart';
 import '../models.dart';
@@ -19,6 +20,8 @@ class WorkoutPage extends StatefulWidget {
 
 class _WorkoutPageState extends State<WorkoutPage> {
   Timer? ticker;
+  // Keeps the "trvá N min" header current outside rest periods.
+  Timer? clock;
   bool finishing = false;
 
   Workout get workout => widget.app.active!;
@@ -27,6 +30,9 @@ class _WorkoutPageState extends State<WorkoutPage> {
   void initState() {
     super.initState();
     if (workout.restEnd != null) _startTicker();
+    clock = Timer.periodic(const Duration(seconds: 30), (_) {
+      if (mounted) setState(() {});
+    });
   }
 
   void _startTicker() {
@@ -38,6 +44,8 @@ class _WorkoutPageState extends State<WorkoutPage> {
         widget.app.active?.restEnd = null;
         widget.app.touchActive();
         ticker?.cancel();
+        unawaited(HapticFeedback.heavyImpact());
+        unawaited(SystemSound.play(SystemSoundType.alert));
       }
       setState(() {});
     });
@@ -46,6 +54,7 @@ class _WorkoutPageState extends State<WorkoutPage> {
   @override
   void dispose() {
     ticker?.cancel();
+    clock?.cancel();
     super.dispose();
   }
 
@@ -94,10 +103,13 @@ class _WorkoutPageState extends State<WorkoutPage> {
           )) {
         return;
       }
+      if (!mounted) return;
       await widget.app.finish();
       if (mounted) toast(context, 'Trénink uložen. Návrhy najdeš v historii.');
     } catch (error) {
-      if (mounted) toast(context, 'Trénink se nepodařilo dokončit: $error');
+      if (mounted) {
+        toast(context, 'Trénink se nepodařilo dokončit: ${errorText(error)}');
+      }
     } finally {
       if (mounted) setState(() => finishing = false);
     }
@@ -185,7 +197,10 @@ class _WorkoutPageState extends State<WorkoutPage> {
       padding: const EdgeInsets.all(16),
       children: [
         Text(w.planName, style: Theme.of(context).textTheme.headlineSmall),
-        Text('Začátek: ${formatTime(w.startedAt)}'),
+        Text(
+          'Začátek: ${formatTime(w.startedAt)} · '
+          'trvá ${DateTime.now().difference(w.startedAt).inMinutes} min',
+        ),
         TextFormField(
           key: ValueKey('note-${w.id}'),
           initialValue: w.note,
@@ -208,8 +223,8 @@ class _WorkoutPageState extends State<WorkoutPage> {
                 Expanded(
                   child: Text(
                     remaining > 0
-                        ? 'Odpočinek ${remaining}s'
-                        : 'Čas na další sérii',
+                        ? 'Pauza ${formatSeconds(remaining)}'
+                        : 'Další série',
                   ),
                 ),
                 IconButton(
@@ -217,7 +232,7 @@ class _WorkoutPageState extends State<WorkoutPage> {
                   onPressed: () => _changeRestSeconds(-15),
                   icon: const Icon(Icons.remove),
                 ),
-                Text('${w.restSeconds}s'),
+                Text(formatSeconds(w.restSeconds)),
                 IconButton(
                   tooltip: 'Delší pauza',
                   onPressed: () => _changeRestSeconds(15),
@@ -361,6 +376,7 @@ class _ExerciseCardState extends State<_ExerciseCard> {
               SetRow(
                 key: ObjectKey(exercise.sets[j]),
                 index: j,
+                number: setNumber(exercise.sets, j),
                 set: exercise.sets[j],
                 measurement: exercise.measurement,
                 showRir: app.mode != 'Simple',
@@ -408,8 +424,16 @@ class _ExerciseCardState extends State<_ExerciseCard> {
   }
 }
 
+/// Position of [sets][index] among sets of the same kind, counted from 1,
+/// so the first work set after two warm-ups is "1.", not "3.".
+int setNumber(List<WorkoutSet> sets, int index) =>
+    sets.take(index).where((s) => s.kind == sets[index].kind).length + 1;
+
 class SetRow extends StatefulWidget {
   final int index;
+
+  /// Number shown to the user; defaults to [index] + 1.
+  final int? number;
   final MeasurementType measurement;
   final WorkoutSet set;
   final bool showRir;
@@ -419,6 +443,7 @@ class SetRow extends StatefulWidget {
   const SetRow({
     super.key,
     required this.index,
+    this.number,
     this.measurement = MeasurementType.weighted,
     required this.set,
     required this.showRir,
@@ -481,6 +506,7 @@ class _SetRowState extends State<SetRow> {
   Widget build(BuildContext context) {
     final set = widget.set;
     final index = widget.index;
+    final number = widget.number ?? index + 1;
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 4),
       child: Column(
@@ -491,8 +517,8 @@ class _SetRowState extends State<SetRow> {
                 width: 52,
                 child: Text(
                   set.kind == 'warmup'
-                      ? 'R ${index + 1}'
-                      : '${index + 1}. / ${set.target}',
+                      ? 'R $number'
+                      : '$number. / ${set.target}',
                 ),
               ),
               if (widget.measurement != MeasurementType.timed)
@@ -545,7 +571,9 @@ class _SetRowState extends State<SetRow> {
                 ),
               ),
               Semantics(
-                label: 'Dokončeno série ${index + 1}',
+                label: set.kind == 'warmup'
+                    ? 'Dokončena rozcvičovací série $number'
+                    : 'Dokončena série $number',
                 child: Checkbox(
                   value: set.done,
                   onChanged: (value) => toggleDone(value == true),
@@ -556,7 +584,9 @@ class _SetRowState extends State<SetRow> {
           Row(
             children: [
               const SizedBox(width: 52),
-              if (widget.showRir && widget.measurement != MeasurementType.timed)
+              if (widget.showRir &&
+                  set.kind == 'work' &&
+                  widget.measurement != MeasurementType.timed)
                 SizedBox(
                   width: 64,
                   child: TextFormField(

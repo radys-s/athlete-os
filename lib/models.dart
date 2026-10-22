@@ -40,10 +40,22 @@ MeasurementType exerciseMeasurement(
   return MeasurementType.weighted;
 }
 
+/// Czech number for display: 42.5 -> "42,5", 40.0 -> "40", 1.25 -> "1,25".
+/// Float noise such as 20.200000000000003 is trimmed to two decimals.
+String formatNumber(num value) {
+  final d = value.toDouble();
+  if (!d.isFinite) return '–';
+  var text = d.toStringAsFixed(2);
+  text = text.replaceFirst(RegExp(r'\.?0+$'), '');
+  return text.replaceAll('.', ',');
+}
+
+/// 1 cvik, 2 cviky, 5 cviků.
+String czechCount(int n, String one, String few, String many) =>
+    '$n ${n == 1 ? one : (n >= 2 && n <= 4 ? few : many)}';
+
 String setMeasurementLabel(WorkoutSet set, MeasurementType type) {
-  final kg = set.weight == set.weight.roundToDouble()
-      ? set.weight.toStringAsFixed(0)
-      : set.weight.toString();
+  final kg = formatNumber(set.weight);
   return switch (type) {
     MeasurementType.timed => '${set.seconds} s',
     MeasurementType.bodyweight =>
@@ -67,6 +79,29 @@ List<Map<String, dynamic>> asMaps(dynamic value) =>
     ((value as List<dynamic>?) ?? const [])
         .map((item) => Map<String, dynamic>.from(item as Map))
         .toList();
+
+/// Lowercase text without Czech diacritics, so "drep" finds "Dřep".
+String searchKey(String text) {
+  const from = 'áčďéěíňóřšťúůýž';
+  const to = 'acdeeinorstuuyz';
+  final buffer = StringBuffer();
+  for (final char in text.toLowerCase().split('')) {
+    final index = from.indexOf(char);
+    buffer.write(index < 0 ? char : to[index]);
+  }
+  return buffer.toString();
+}
+
+/// Whether [exercise] matches a search [query] by name or Czech alias.
+bool exerciseMatches(Map<String, dynamic> exercise, String query) {
+  final words = searchKey(query)
+      .split(RegExp(r'\s+'))
+      .where((w) => w.isNotEmpty);
+  final haystack = searchKey(
+    '${exercise['name'] ?? ''} ${exercise['aliases'] ?? ''}',
+  );
+  return words.every(haystack.contains);
+}
 
 String exerciseName(String id, List<Map<String, dynamic>> custom) {
   for (final exercise in [...builtInExercises, ...custom]) {

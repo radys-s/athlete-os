@@ -169,7 +169,7 @@ void main() {
     ], (_) => 'Cvik');
     expect(csv, contains('measurement;seconds'));
     expect(csv, contains(';timed;45;10;;;'));
-    expect(csv, contains(';assisted;;10;10;"35,0";'));
+    expect(csv, contains(';assisted;;10;10;35;'));
   });
   testWidgets('timed row has seconds only and clears invalid completion', (
     tester,

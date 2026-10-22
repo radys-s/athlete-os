@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 
 import '../app_controller.dart';
@@ -20,6 +22,14 @@ class _PlanEditorState extends State<PlanEditor> {
   late final TextEditingController name = TextEditingController(
     text: plan.name,
   );
+  late final String _initial = _snapshot();
+
+  /// Plan items whose typed targets could not be parsed.
+  final Set<String> _invalidTargets = {};
+
+  String _snapshot() => jsonEncode({...plan.toJson(), 'name': name.text});
+
+  bool get _changed => _snapshot() != _initial;
 
   @override
   void dispose() {
@@ -63,7 +73,10 @@ class _PlanEditorState extends State<PlanEditor> {
   Future<void> save() async {
     if (saving) return;
     plan.name = name.text.trim();
-    final error = plan.validate();
+    _invalidTargets.retainAll(plan.exercises.map((e) => e.id));
+    final error = _invalidTargets.isNotEmpty
+        ? 'Oprav cíle sérií – zadej čísla oddělená čárkou.'
+        : plan.validate();
     if (error != null) {
       toast(context, error);
       return;
@@ -73,7 +86,9 @@ class _PlanEditorState extends State<PlanEditor> {
       await widget.app.savePlan(plan);
       if (mounted) Navigator.pop(context);
     } catch (error) {
-      if (mounted) toast(context, 'Plán se nepodařilo uložit: $error');
+      if (mounted) {
+        toast(context, 'Plán se nepodařilo uložit: ${errorText(error)}');
+      }
     } finally {
       if (mounted) setState(() => saving = false);
     }
@@ -82,43 +97,64 @@ class _PlanEditorState extends State<PlanEditor> {
   @override
   Widget build(BuildContext context) {
     final items = plan.exercises;
-    return Scaffold(
-      appBar: AppBar(title: const Text('Tréninkový plán')),
-      body: AbsorbPointer(
-        absorbing: saving,
-        child: ListView(
-          padding: const EdgeInsets.all(16),
-          children: [
-            TextField(
-              controller: name,
-              decoration: const InputDecoration(labelText: 'Název plánu'),
-            ),
-            const SizedBox(height: 18),
-            for (var i = 0; i < items.length; i++)
-              _ItemEditor(
-                key: ValueKey(items[i].id),
-                item: items[i],
-                title: exerciseName(
-                  items[i].exerciseId,
-                  widget.app.customExercises,
-                ),
-                onUp: i == 0 ? null : () => move(i, i - 1),
-                onDown: i == items.length - 1 ? null : () => move(i, i + 1),
-                onRemove: () => setState(() => items.removeAt(i)),
+    return PopScope(
+      // Text fields edit the plan without setState, so canPop cannot track
+      // changes; decide on each back gesture instead.
+      canPop: false,
+      onPopInvokedWithResult: (didPop, _) async {
+        if (didPop) return;
+        final leave =
+            saving ||
+            !_changed ||
+            await confirmDialog(
+              context,
+              title: 'Zahodit změny?',
+              body: 'Úpravy plánu nejsou uložené.',
+              confirmLabel: 'Zahodit',
+            );
+        if (leave && context.mounted) Navigator.of(context).pop();
+      },
+      child: Scaffold(
+        appBar: AppBar(title: const Text('Tréninkový plán')),
+        body: AbsorbPointer(
+          absorbing: saving,
+          child: ListView(
+            padding: const EdgeInsets.all(16),
+            children: [
+              TextField(
+                controller: name,
+                decoration: const InputDecoration(labelText: 'Název plánu'),
               ),
-            SupersetEditor(
-              widget.app,
-              plan: plan,
-              onChanged: () => setState(() {}),
-            ),
-            OutlinedButton.icon(
-              onPressed: addExercise,
-              icon: const Icon(Icons.add),
-              label: const Text('Přidat cvik'),
-            ),
-            const SizedBox(height: 12),
-            FilledButton(onPressed: save, child: const Text('Uložit plán')),
-          ],
+              const SizedBox(height: 18),
+              for (var i = 0; i < items.length; i++)
+                _ItemEditor(
+                  key: ValueKey(items[i].id),
+                  item: items[i],
+                  title: exerciseName(
+                    items[i].exerciseId,
+                    widget.app.customExercises,
+                  ),
+                  onUp: i == 0 ? null : () => move(i, i - 1),
+                  onDown: i == items.length - 1 ? null : () => move(i, i + 1),
+                  onRemove: () => setState(() => items.removeAt(i)),
+                  onTargetsValid: (valid) => valid
+                      ? _invalidTargets.remove(items[i].id)
+                      : _invalidTargets.add(items[i].id),
+                ),
+              SupersetEditor(
+                widget.app,
+                plan: plan,
+                onChanged: () => setState(() {}),
+              ),
+              OutlinedButton.icon(
+                onPressed: addExercise,
+                icon: const Icon(Icons.add),
+                label: const Text('Přidat cvik'),
+              ),
+              const SizedBox(height: 12),
+              FilledButton(onPressed: save, child: const Text('Uložit plán')),
+            ],
+          ),
         ),
       ),
     );
@@ -131,6 +167,7 @@ class _ItemEditor extends StatefulWidget {
   final VoidCallback? onUp;
   final VoidCallback? onDown;
   final VoidCallback onRemove;
+  final ValueChanged<bool> onTargetsValid;
   const _ItemEditor({
     super.key,
     required this.item,
@@ -138,6 +175,7 @@ class _ItemEditor extends StatefulWidget {
     required this.onUp,
     required this.onDown,
     required this.onRemove,
+    required this.onTargetsValid,
   });
 
   @override
@@ -151,6 +189,7 @@ class _ItemEditorState extends State<_ItemEditor> {
   late final rangeMin = TextEditingController(text: '${item.rangeMin}');
   late final rangeMax = TextEditingController(text: '${item.rangeMax}');
   late final targets = TextEditingController(text: item.targets.join(', '));
+  String? targetsError;
 
   @override
   void dispose() {
@@ -172,6 +211,8 @@ class _ItemEditorState extends State<_ItemEditor> {
       item.targets = item.targets.sublist(0, count);
     }
     targets.text = item.targets.join(', ');
+    targetsError = null;
+    widget.onTargetsValid(true);
   });
 
   @override
@@ -356,16 +397,23 @@ class _ItemEditorState extends State<_ItemEditor> {
                   labelText: item.measurement == MeasurementType.timed
                       ? 'Cíle sérií v sekundách (např. 30, 30, 30)'
                       : 'Cíle sérií (např. 12, 10, 8)',
+                  errorText: targetsError,
                 ),
                 onChanged: (value) {
                   final parsed = value
                       .split(',')
                       .map((s) => int.tryParse(s.trim()))
                       .toList();
-                  if (parsed.isNotEmpty &&
-                      parsed.every((n) => n != null && n > 0)) {
-                    setState(() => item.targets = parsed.cast<int>());
-                  }
+                  final valid =
+                      parsed.length <= 12 &&
+                      parsed.every((n) => n != null && n > 0);
+                  setState(() {
+                    if (valid) item.targets = parsed.cast<int>();
+                    targetsError = valid
+                        ? null
+                        : 'Zadej 1 až 12 kladných čísel oddělených čárkou.';
+                  });
+                  widget.onTargetsValid(valid);
                 },
               )
             else

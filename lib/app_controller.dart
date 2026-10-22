@@ -503,7 +503,7 @@ class AppController extends ChangeNotifier with WidgetsBindingObserver {
     _pendingWrites++;
     final next = _writeTail
         .catchError((Object _) {})
-        .then((_) => store.put('active', snapshot));
+        .then((_) => store.put('active', snapshot, reviveDeleted: false));
     _writeTail = next;
     try {
       await next;

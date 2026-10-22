@@ -7,7 +7,15 @@ String _cell(Object? value) {
       : text;
 }
 
-/// Jedna řádka na sérii, nejnovější trénink první.
+/// Local time as "2026-10-22 18:05", which Czech Excel reads as a date.
+String _localStamp(DateTime value) {
+  final l = value.toLocal();
+  String two(int n) => n.toString().padLeft(2, '0');
+  return '${l.year}-${two(l.month)}-${two(l.day)} ${two(l.hour)}:${two(l.minute)}';
+}
+
+/// Jedna řádka na sérii, nejnovější trénink první. Začíná znakem BOM, aby
+/// Excel otevřel UTF-8 s diakritikou správně.
 String sessionsToCsv(
   List<Workout> sessions,
   String Function(String exerciseId) nameOf,
@@ -34,7 +42,7 @@ String sessionsToCsv(
       for (var i = 0; i < exercise.sets.length; i++) {
         final set = exercise.sets[i];
         rows.add([
-          (session.finishedAt ?? session.startedAt).toIso8601String(),
+          _localStamp(session.finishedAt ?? session.startedAt),
           session.planName,
           nameOf(exercise.exerciseId),
           i + 1,
@@ -45,7 +53,7 @@ String sessionsToCsv(
           exercise.measurement == MeasurementType.timed ? null : set.reps,
           exercise.measurement == MeasurementType.timed
               ? null
-              : '${set.weight}'.replaceAll('.', ','),
+              : formatNumber(set.weight),
           set.rir,
           set.done ? 1 : 0,
           session.note,
@@ -53,5 +61,5 @@ String sessionsToCsv(
       }
     }
   }
-  return rows.map((row) => row.map(_cell).join(';')).join('\r\n');
+  return '﻿${rows.map((row) => row.map(_cell).join(';')).join('\r\n')}';
 }

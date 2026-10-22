@@ -56,7 +56,14 @@ class _ScanPageState extends State<ScanPage> {
           filename: photo.name,
         ),
       );
-      final response = await http.Response.fromStream(await request.send());
+      final response = await http.Response.fromStream(
+        await request.send().timeout(const Duration(seconds: 40)),
+      ).timeout(const Duration(seconds: 40));
+      if (response.statusCode == 429) {
+        error = 'Denní limit skenů je vyčerpaný. Vyber cvik ručně.';
+        if (mounted) setState(() => busy = false);
+        return;
+      }
       if (response.statusCode != 200) {
         throw Exception('Server vrátil ${response.statusCode}');
       }

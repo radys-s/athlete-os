@@ -39,7 +39,10 @@ class PlansPage extends StatelessWidget {
             await app.startQuickWorkout();
           } catch (error) {
             if (context.mounted) {
-              toast(context, 'Trénink se nepodařilo uložit: $error');
+              toast(
+                context,
+                'Trénink se nepodařilo uložit: ${errorText(error)}',
+              );
             }
           }
         },
@@ -71,12 +74,12 @@ class _PlanCard extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(plan.name, style: Theme.of(context).textTheme.titleLarge),
-          Text('${plan.exercises.length} cviků'),
+          Text(czechCount(plan.exercises.length, 'cvik', 'cviky', 'cviků')),
           if (app.layout == 'Detailní')
             for (final item in plan.exercises)
               Text(
                 '${exerciseName(item.exerciseId, app.customExercises)} · '
-                '${item.targets.join(' / ')} · ${fmtNum(item.weight)} kg',
+                '${_planItemSummary(item)}',
               ),
           const SizedBox(height: 10),
           Row(
@@ -88,7 +91,10 @@ class _PlanCard extends StatelessWidget {
                       await app.startPlan(plan);
                     } catch (error) {
                       if (context.mounted) {
-                        toast(context, 'Trénink se nepodařilo spustit: $error');
+                        toast(
+                          context,
+                          'Trénink se nepodařilo spustit: ${errorText(error)}',
+                        );
                       }
                     }
                   },
@@ -108,16 +114,25 @@ class _PlanCard extends StatelessWidget {
               PopupMenuButton<String>(
                 tooltip: 'Další akce s plánem',
                 onSelected: (action) async {
-                  if (action == 'copy') {
-                    await app.duplicatePlan(plan);
-                  } else if (context.mounted &&
-                      await confirmDialog(
+                  try {
+                    if (action == 'copy') {
+                      await app.duplicatePlan(plan);
+                    } else if (context.mounted &&
+                        await confirmDialog(
+                          context,
+                          title: 'Archivovat plán?',
+                          body: 'Historie tréninků zůstane zachována.',
+                          confirmLabel: 'Archivovat',
+                        )) {
+                      await app.archivePlan(plan);
+                    }
+                  } catch (error) {
+                    if (context.mounted) {
+                      toast(
                         context,
-                        title: 'Archivovat plán?',
-                        body: 'Historie tréninků zůstane zachována.',
-                        confirmLabel: 'Archivovat',
-                      )) {
-                    await app.archivePlan(plan);
+                        'Plán se nepodařilo uložit: ${errorText(error)}',
+                      );
+                    }
                   }
                 },
                 itemBuilder: (_) => const [
@@ -131,4 +146,15 @@ class _PlanCard extends StatelessWidget {
       ),
     ),
   );
+}
+
+String _planItemSummary(PlanExercise item) {
+  final targets = item.targets.join(' / ');
+  return switch (item.measurement) {
+    MeasurementType.timed => '$targets s',
+    MeasurementType.bodyweight =>
+      item.weight > 0 ? '$targets · +${fmtNum(item.weight)} kg' : targets,
+    MeasurementType.assisted => '$targets · dopomoc ${fmtNum(item.weight)} kg',
+    MeasurementType.weighted => '$targets · ${fmtNum(item.weight)} kg',
+  };
 }

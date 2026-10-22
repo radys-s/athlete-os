@@ -167,4 +167,17 @@ void main() {
     expect((await store.get('settings'))?['mode'], 'Advanced');
     expect(await store.get('p1'), isNull);
   });
+
+  test(
+    'autosave after finish does not revive a deleted active workout',
+    () async {
+      final active = {'id': 'active-1', 'planId': 'plan-1', 'exercises': []};
+      await store.put('active', active);
+      await store.remove('active-1');
+      await store.put('active', active, reviveDeleted: false);
+      expect(await store.all('active'), isEmpty);
+      await store.put('active', active);
+      expect((await store.all('active')).length, 1);
+    },
+  );
 }

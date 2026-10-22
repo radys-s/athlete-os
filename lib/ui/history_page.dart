@@ -58,14 +58,20 @@ class _SessionCard extends StatelessWidget {
             child: const Text('Zpět'),
           ),
           FilledButton(
-            onPressed: () => Navigator.pop(ctx, parseNum(input.text)),
+            onPressed: () => Navigator.pop(ctx, parseNum(input.text) ?? -1),
             child: const Text('Uložit'),
           ),
         ],
       ),
     );
     input.dispose();
-    if (chosen != null && chosen >= 0 && context.mounted) {
+    if (chosen == null || chosen < 0) {
+      if (context.mounted && chosen != null) {
+        toast(context, 'Váha musí být nezáporné číslo.');
+      }
+      return;
+    }
+    if (context.mounted) {
       await _decide(context, proposal, accept: true, chosen: chosen);
     }
   }
@@ -141,7 +147,18 @@ class _SessionCard extends StatelessWidget {
           OutlinedButton.icon(
             onPressed: app.active != null
                 ? null
-                : () => app.startFromSession(session),
+                : () async {
+                    try {
+                      await app.startFromSession(session);
+                    } catch (error) {
+                      if (context.mounted) {
+                        toast(
+                          context,
+                          'Trénink se nepodařilo spustit: ${errorText(error)}',
+                        );
+                      }
+                    }
+                  },
             icon: const Icon(Icons.replay),
             label: const Text('Zopakovat trénink'),
           ),
@@ -153,7 +170,13 @@ class _SessionCard extends StatelessWidget {
                 body: 'Záznam se odstraní také ze synchronizovaných zařízení.',
                 confirmLabel: 'Smazat',
               )) {
-                await app.deleteSession(session.id);
+                try {
+                  await app.deleteSession(session.id);
+                } catch (error) {
+                  if (context.mounted) {
+                    toast(context, 'Smazání se nezdařilo: ${errorText(error)}');
+                  }
+                }
               }
             },
             icon: const Icon(Icons.delete_outline),

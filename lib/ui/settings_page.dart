@@ -33,7 +33,7 @@ class SettingsPage extends StatelessWidget {
       if (context.mounted && target != null) toast(context, 'Uloženo: $name');
     } catch (error) {
       if (context.mounted) {
-        toast(context, 'Soubor se nepodařilo uložit: $error');
+        toast(context, 'Soubor se nepodařilo uložit: ${errorText(error)}');
       }
     }
   }
@@ -50,7 +50,7 @@ class SettingsPage extends StatelessWidget {
       );
     } catch (error) {
       if (context.mounted) {
-        toast(context, 'Zálohu se nepodařilo vytvořit: $error');
+        toast(context, 'Zálohu se nepodařilo vytvořit: ${errorText(error)}');
       }
     }
   }
@@ -78,7 +78,9 @@ class SettingsPage extends StatelessWidget {
       final count = await app.importBackup(source);
       if (context.mounted) toast(context, 'Obnoveno $count záznamů.');
     } catch (error) {
-      if (context.mounted) toast(context, 'Obnova se nezdařila: $error');
+      if (context.mounted) {
+        toast(context, 'Obnova se nezdařila: ${errorText(error)}');
+      }
     }
   }
 
@@ -95,7 +97,9 @@ class SettingsPage extends StatelessWidget {
       await app.deleteAccount();
       if (context.mounted) toast(context, 'Účet a data byly smazány.');
     } catch (error) {
-      if (context.mounted) toast(context, 'Účet se nepodařilo smazat: $error');
+      if (context.mounted) {
+        toast(context, 'Účet se nepodařilo smazat: ${errorText(error)}');
+      }
     }
   }
 
@@ -112,7 +116,9 @@ class SettingsPage extends StatelessWidget {
       await app.wipeLocalData();
       if (context.mounted) toast(context, 'Data v zařízení byla smazána.');
     } catch (error) {
-      if (context.mounted) toast(context, 'Smazání se nezdařilo: $error');
+      if (context.mounted) {
+        toast(context, 'Smazání se nezdařilo: ${errorText(error)}');
+      }
     }
   }
 
@@ -125,7 +131,7 @@ class SettingsPage extends StatelessWidget {
       }
     } catch (error) {
       if (context.mounted) {
-        toast(context, 'Zálohu se nepodařilo vytvořit: $error');
+        toast(context, 'Zálohu se nepodařilo vytvořit: ${errorText(error)}');
       }
     }
   }
@@ -178,7 +184,9 @@ class SettingsPage extends StatelessWidget {
       final count = await app.importBackup(source);
       if (context.mounted) toast(context, 'Obnoveno $count záznamů.');
     } catch (error) {
-      if (context.mounted) toast(context, 'Obnova se nezdařila: $error');
+      if (context.mounted) {
+        toast(context, 'Obnova se nezdařila: ${errorText(error)}');
+      }
     }
   }
 
@@ -188,6 +196,7 @@ class SettingsPage extends StatelessWidget {
     children: [
       Text('Úroveň detailu', style: Theme.of(context).textTheme.titleLarge),
       SegmentedButton<String>(
+        showSelectedIcon: false,
         segments: const [
           ButtonSegment(value: 'Simple', label: Text('Simple')),
           ButtonSegment(value: 'Standard', label: Text('Standard')),
@@ -199,6 +208,7 @@ class SettingsPage extends StatelessWidget {
       const SizedBox(height: 16),
       Text('Uspořádání', style: Theme.of(context).textTheme.titleLarge),
       SegmentedButton<String>(
+        showSelectedIcon: false,
         segments: const [
           ButtonSegment(value: 'Přehledný', label: Text('Přehledný')),
           ButtonSegment(value: 'Detailní', label: Text('Detailní')),
@@ -258,7 +268,16 @@ class SettingsPage extends StatelessWidget {
                 body: 'Po potvrzení se tyto záznamy zálohují a synchronizují.',
                 confirmLabel: 'Přidat',
               )) {
-                await app.confirmImport();
+                try {
+                  await app.confirmImport();
+                } catch (error) {
+                  if (context.mounted) {
+                    toast(
+                      context,
+                      'Propojení se nezdařilo: ${errorText(error)}',
+                    );
+                  }
+                }
               }
             },
             child: const Text('Přidat místní data k účtu'),
@@ -268,7 +287,19 @@ class SettingsPage extends StatelessWidget {
           onPressed: app.sync,
           child: const Text('Synchronizovat'),
         ),
-        TextButton(onPressed: app.signOut, child: const Text('Odhlásit se')),
+        TextButton(
+          onPressed: () async {
+            if (await confirmDialog(
+              context,
+              title: 'Odhlásit se?',
+              body: 'Data v zařízení se zamknou, dokud se znovu nepřihlásíš ke stejnému účtu.',
+              confirmLabel: 'Odhlásit',
+            )) {
+              await app.signOut();
+            }
+          },
+          child: const Text('Odhlásit se'),
+        ),
         TextButton(
           onPressed: () => _deleteAccount(context),
           child: const Text('Smazat účet a data'),
@@ -284,9 +315,9 @@ class SettingsPage extends StatelessWidget {
         Card(
           child: Column(
             children: [
-              const ListTile(
-                title: Text('Konflikt synchronizace'),
-                subtitle: Text(
+              ListTile(
+                title: Text('Konflikt: ${_conflictLabel(remote)}'),
+                subtitle: const Text(
                   'Změna tohoto záznamu existuje také na druhém zařízení.',
                 ),
               ),
@@ -309,4 +340,20 @@ class SettingsPage extends StatelessWidget {
         ),
     ],
   );
+}
+
+String _conflictLabel(Map<String, dynamic> remote) {
+  final payload = remote['payload'];
+  final title = payload is Map
+      ? '${payload['name'] ?? payload['planName'] ?? ''}'
+      : '';
+  final kind = switch (remote['kind']) {
+    'plan' => 'plán',
+    'session' => 'trénink',
+    'active' => 'rozepsaný trénink',
+    'exercise' => 'cvik',
+    'settings' => 'nastavení',
+    _ => 'záznam',
+  };
+  return title.isEmpty ? kind : '$kind „$title“';
 }

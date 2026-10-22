@@ -113,6 +113,7 @@ class _OnboardingPageState extends State<OnboardingPage> {
                 ),
                 const SizedBox(height: 20),
                 SegmentedButton<String>(
+                  showSelectedIcon: false,
                   segments: const [
                     ButtonSegment(value: 'Přehledný', label: Text('Přehledný')),
                     ButtonSegment(value: 'Detailní', label: Text('Detailní')),

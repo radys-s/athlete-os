@@ -74,8 +74,8 @@ ProgressionResult evaluateProgression(
   return ProgressionResult(
     true,
     rangeRule
-        ? 'Všechny série dosáhly horní hranice $rangeMax opakování. Pravidlo navrhuje přidat ${step.toStringAsFixed(1)} kg.'
-        : 'Splnil jsi všech ${targets.length} cílových sérií. Pravidlo navrhuje přidat ${step.toStringAsFixed(1)} kg.',
+        ? 'Všechny série dosáhly horní hranice $rangeMax opakování. Pravidlo navrhuje přidat ${formatNumber(step)} kg.'
+        : 'Splnil jsi všech ${targets.length} cílových sérií. Pravidlo navrhuje přidat ${formatNumber(step)} kg.',
     currentWeight + step,
   );
 }

@@ -4,377 +4,431 @@
     "name": "Bench press",
     "muscle": "Hrudník",
     "equipment": "Činka",
-    "measurement": "weighted"
+    "measurement": "weighted",
+    "aliases": "benč, tlak na lavici, bench"
   },
   {
     "id": "incline_press",
     "name": "Incline press",
     "muscle": "Hrudník",
     "equipment": "Činka",
-    "measurement": "weighted"
+    "measurement": "weighted",
+    "aliases": "šikmý benč, tlak na šikmé lavici"
   },
   {
     "id": "chest_press_machine",
     "name": "Chest press machine",
     "muscle": "Hrudník",
     "equipment": "Stroj",
-    "measurement": "weighted"
+    "measurement": "weighted",
+    "aliases": "tlak na prsa stroj"
   },
   {
     "id": "pec_deck",
     "name": "Pec deck",
     "muscle": "Hrudník",
     "equipment": "Stroj",
-    "measurement": "weighted"
+    "measurement": "weighted",
+    "aliases": "butterfly, motýlek, peck deck"
   },
   {
     "id": "cable_fly",
     "name": "Cable fly",
     "muscle": "Hrudník",
     "equipment": "Kladka",
-    "measurement": "weighted"
+    "measurement": "weighted",
+    "aliases": "rozpažování na kladce, crossover"
   },
   {
     "id": "squat",
     "name": "Barbell squat",
     "muscle": "Nohy",
     "equipment": "Činka",
-    "measurement": "weighted"
+    "measurement": "weighted",
+    "aliases": "dřep s činkou, dřepy"
   },
   {
     "id": "leg_press",
     "name": "Leg press",
     "muscle": "Nohy",
     "equipment": "Stroj",
-    "measurement": "weighted"
+    "measurement": "weighted",
+    "aliases": "legpress, nožní lis"
   },
   {
     "id": "hack_squat",
     "name": "Hack squat",
     "muscle": "Nohy",
     "equipment": "Stroj",
-    "measurement": "weighted"
+    "measurement": "weighted",
+    "aliases": "hack dřep"
   },
   {
     "id": "leg_extension",
     "name": "Leg extension",
     "muscle": "Nohy",
     "equipment": "Stroj",
-    "measurement": "weighted"
+    "measurement": "weighted",
+    "aliases": "předkopávání, extenze nohou"
   },
   {
     "id": "leg_curl",
     "name": "Leg curl",
     "muscle": "Nohy",
     "equipment": "Stroj",
-    "measurement": "weighted"
+    "measurement": "weighted",
+    "aliases": "zakopávání, leg curl"
   },
   {
     "id": "romanian_deadlift",
     "name": "Romanian deadlift",
     "muscle": "Nohy",
     "equipment": "Činka",
-    "measurement": "weighted"
+    "measurement": "weighted",
+    "aliases": "rumunský mrtvý tah, rdl"
   },
   {
     "id": "calf_raise",
     "name": "Calf raise",
     "muscle": "Nohy",
     "equipment": "Stroj",
-    "measurement": "weighted"
+    "measurement": "weighted",
+    "aliases": "výpony, lýtka"
   },
   {
     "id": "deadlift",
     "name": "Deadlift",
     "muscle": "Záda",
     "equipment": "Činka",
-    "measurement": "weighted"
+    "measurement": "weighted",
+    "aliases": "mrtvý tah"
   },
   {
     "id": "lat_pulldown",
     "name": "Lat pulldown",
     "muscle": "Záda",
     "equipment": "Kladka",
-    "measurement": "weighted"
+    "measurement": "weighted",
+    "aliases": "stahování kladky, přítahy kladky"
   },
   {
     "id": "seated_row",
     "name": "Seated cable row",
     "muscle": "Záda",
     "equipment": "Kladka",
-    "measurement": "weighted"
+    "measurement": "weighted",
+    "aliases": "přítahy vsedě, veslování na kladce"
   },
   {
     "id": "chest_supported_row",
     "name": "Chest-supported row",
     "muscle": "Záda",
     "equipment": "Stroj",
-    "measurement": "weighted"
+    "measurement": "weighted",
+    "aliases": "přítahy s oporou hrudi"
   },
   {
     "id": "pull_up",
     "name": "Pull-up",
     "muscle": "Záda",
     "equipment": "Vlastní váha",
-    "measurement": "bodyweight"
+    "measurement": "bodyweight",
+    "aliases": "shyby, přítahy na hrazdě"
   },
   {
     "id": "shoulder_press",
     "name": "Shoulder press",
     "muscle": "Ramena",
     "equipment": "Stroj",
-    "measurement": "weighted"
+    "measurement": "weighted",
+    "aliases": "tlaky na ramena stroj"
   },
   {
     "id": "lateral_raise",
     "name": "Lateral raise",
     "muscle": "Ramena",
     "equipment": "Jednoručky",
-    "measurement": "weighted"
+    "measurement": "weighted",
+    "aliases": "upažování, rozpažování"
   },
   {
     "id": "reverse_pec_deck",
     "name": "Reverse pec deck",
     "muscle": "Ramena",
     "equipment": "Stroj",
-    "measurement": "weighted"
+    "measurement": "weighted",
+    "aliases": "zadní ramena stroj, reverse butterfly"
   },
   {
     "id": "biceps_curl",
     "name": "Biceps curl",
     "muscle": "Paže",
     "equipment": "Jednoručky",
-    "measurement": "weighted"
+    "measurement": "weighted",
+    "aliases": "bicepsový zdvih, bicák"
   },
   {
     "id": "preacher_curl",
     "name": "Preacher curl",
     "muscle": "Paže",
     "equipment": "Stroj",
-    "measurement": "weighted"
+    "measurement": "weighted",
+    "aliases": "scottova lavice, bicák na lavici"
   },
   {
     "id": "triceps_pushdown",
     "name": "Triceps pushdown",
     "muscle": "Paže",
     "equipment": "Kladka",
-    "measurement": "weighted"
+    "measurement": "weighted",
+    "aliases": "tricepsové stahování, tricák na kladce"
   },
   {
     "id": "dips",
     "name": "Dips",
     "muscle": "Paže",
     "equipment": "Vlastní váha",
-    "measurement": "bodyweight"
+    "measurement": "bodyweight",
+    "aliases": "kliky na bradlech, bradla"
   },
   {
     "id": "ab_crunch",
     "name": "Ab crunch machine",
     "muscle": "Střed těla",
     "equipment": "Stroj",
-    "measurement": "weighted"
+    "measurement": "weighted",
+    "aliases": "sedy lehy stroj, břicho stroj"
   },
   {
     "id": "dumbbell_bench_press",
     "name": "Dumbbell bench press",
     "muscle": "Hrudník",
     "equipment": "Jednoručky",
-    "measurement": "weighted"
+    "measurement": "weighted",
+    "aliases": "benč s jednoručkami, tlak s jednoručkami"
   },
   {
     "id": "incline_dumbbell_press",
     "name": "Incline dumbbell press",
     "muscle": "Hrudník",
     "equipment": "Jednoručky",
-    "measurement": "weighted"
+    "measurement": "weighted",
+    "aliases": "šikmý tlak s jednoručkami"
   },
   {
     "id": "push_up",
     "name": "Push-up",
     "muscle": "Hrudník",
     "equipment": "Vlastní váha",
-    "measurement": "bodyweight"
+    "measurement": "bodyweight",
+    "aliases": "kliky"
   },
   {
     "id": "front_squat",
     "name": "Front squat",
     "muscle": "Nohy",
     "equipment": "Činka",
-    "measurement": "weighted"
+    "measurement": "weighted",
+    "aliases": "přední dřep"
   },
   {
     "id": "goblet_squat",
     "name": "Goblet squat",
     "muscle": "Nohy",
     "equipment": "Jednoručky",
-    "measurement": "weighted"
+    "measurement": "weighted",
+    "aliases": "goblet dřep"
   },
   {
     "id": "smith_squat",
     "name": "Smith machine squat",
     "muscle": "Nohy",
     "equipment": "Stroj",
-    "measurement": "weighted"
+    "measurement": "weighted",
+    "aliases": "dřep na multipressu, multipress"
   },
   {
     "id": "hip_thrust",
     "name": "Hip thrust",
     "muscle": "Nohy",
     "equipment": "Činka",
-    "measurement": "weighted"
+    "measurement": "weighted",
+    "aliases": "hip thrust, zvedání pánve"
   },
   {
     "id": "bulgarian_split_squat",
     "name": "Bulgarian split squat",
     "muscle": "Nohy",
     "equipment": "Jednoručky",
-    "measurement": "weighted"
+    "measurement": "weighted",
+    "aliases": "bulharský dřep, bulhar"
   },
   {
     "id": "walking_lunge",
     "name": "Walking lunge",
     "muscle": "Nohy",
     "equipment": "Jednoručky",
-    "measurement": "weighted"
+    "measurement": "weighted",
+    "aliases": "výpady v chůzi"
   },
   {
     "id": "seated_calf_raise",
     "name": "Seated calf raise",
     "muscle": "Nohy",
     "equipment": "Stroj",
-    "measurement": "weighted"
+    "measurement": "weighted",
+    "aliases": "výpony vsedě"
   },
   {
     "id": "barbell_row",
     "name": "Barbell row",
     "muscle": "Záda",
     "equipment": "Činka",
-    "measurement": "weighted"
+    "measurement": "weighted",
+    "aliases": "přítahy s velkou činkou v předklonu"
   },
   {
     "id": "dumbbell_row",
     "name": "One-arm dumbbell row",
     "muscle": "Záda",
     "equipment": "Jednoručky",
-    "measurement": "weighted"
+    "measurement": "weighted",
+    "aliases": "přítah jednoručky"
   },
   {
     "id": "close_grip_pulldown",
     "name": "Close-grip lat pulldown",
     "muscle": "Záda",
     "equipment": "Kladka",
-    "measurement": "weighted"
+    "measurement": "weighted",
+    "aliases": "stahování úzkým úchopem"
   },
   {
     "id": "machine_row",
     "name": "Machine row",
     "muscle": "Záda",
     "equipment": "Stroj",
-    "measurement": "weighted"
+    "measurement": "weighted",
+    "aliases": "veslování stroj"
   },
   {
     "id": "assisted_pull_up",
     "name": "Assisted pull-up",
     "muscle": "Záda",
     "equipment": "Stroj",
-    "measurement": "assisted"
+    "measurement": "assisted",
+    "aliases": "shyby s dopomocí"
   },
   {
     "id": "face_pull",
     "name": "Face pull",
     "muscle": "Ramena",
     "equipment": "Kladka",
-    "measurement": "weighted"
+    "measurement": "weighted",
+    "aliases": "face pull, přítahy k obličeji"
   },
   {
     "id": "overhead_press",
     "name": "Barbell overhead press",
     "muscle": "Ramena",
     "equipment": "Činka",
-    "measurement": "weighted"
+    "measurement": "weighted",
+    "aliases": "tlak nad hlavu, vojenský tlak"
   },
   {
     "id": "dumbbell_shoulder_press",
     "name": "Dumbbell shoulder press",
     "muscle": "Ramena",
     "equipment": "Jednoručky",
-    "measurement": "weighted"
+    "measurement": "weighted",
+    "aliases": "tlaky s jednoručkami na ramena"
   },
   {
     "id": "cable_lateral_raise",
     "name": "Cable lateral raise",
     "muscle": "Ramena",
     "equipment": "Kladka",
-    "measurement": "weighted"
+    "measurement": "weighted",
+    "aliases": "upažování na kladce"
   },
   {
     "id": "rear_delt_fly",
     "name": "Rear delt dumbbell fly",
     "muscle": "Ramena",
     "equipment": "Jednoručky",
-    "measurement": "weighted"
+    "measurement": "weighted",
+    "aliases": "zadní ramena jednoručky"
   },
   {
     "id": "barbell_curl",
     "name": "Barbell curl",
     "muscle": "Paže",
     "equipment": "Činka",
-    "measurement": "weighted"
+    "measurement": "weighted",
+    "aliases": "bicepsový zdvih s činkou"
   },
   {
     "id": "hammer_curl",
     "name": "Hammer curl",
     "muscle": "Paže",
     "equipment": "Jednoručky",
-    "measurement": "weighted"
+    "measurement": "weighted",
+    "aliases": "kladiva, hammer"
   },
   {
     "id": "cable_curl",
     "name": "Cable curl",
     "muscle": "Paže",
     "equipment": "Kladka",
-    "measurement": "weighted"
+    "measurement": "weighted",
+    "aliases": "biceps na kladce"
   },
   {
     "id": "overhead_triceps_extension",
     "name": "Overhead triceps extension",
     "muscle": "Paže",
     "equipment": "Kladka",
-    "measurement": "weighted"
+    "measurement": "weighted",
+    "aliases": "francouzský tlak na kladce, triceps nad hlavou"
   },
   {
     "id": "skull_crusher",
     "name": "Skull crusher",
     "muscle": "Paže",
     "equipment": "Činka",
-    "measurement": "weighted"
+    "measurement": "weighted",
+    "aliases": "francouzský tlak"
   },
   {
     "id": "assisted_dips",
     "name": "Assisted dips",
     "muscle": "Paže",
     "equipment": "Stroj",
-    "measurement": "assisted"
+    "measurement": "assisted",
+    "aliases": "bradla s dopomocí"
   },
   {
     "id": "cable_crunch",
     "name": "Cable crunch",
     "muscle": "Střed těla",
     "equipment": "Kladka",
-    "measurement": "weighted"
+    "measurement": "weighted",
+    "aliases": "zkracovačky na kladce"
   },
   {
     "id": "hanging_leg_raise",
     "name": "Hanging leg raise",
     "muscle": "Střed těla",
     "equipment": "Vlastní váha",
-    "measurement": "bodyweight"
+    "measurement": "bodyweight",
+    "aliases": "zvedání nohou ve visu"
   },
   {
     "id": "plank",
     "name": "Plank",
     "muscle": "Střed těla",
     "equipment": "Vlastní váha",
-    "measurement": "timed"
+    "measurement": "timed",
+    "aliases": "prkno"
   }
 ]

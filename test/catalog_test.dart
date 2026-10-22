@@ -14,6 +14,7 @@ void main() {
       expect(item['name'], isNotEmpty);
       expect(item['muscle'], isNotEmpty);
       expect(item['equipment'], isNotEmpty);
+      expect(item['aliases'], isNotEmpty);
     }
   });
 }

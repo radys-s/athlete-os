@@ -18,6 +18,12 @@
 
 Opravené nálezy: druhá záložka zapisovala pod překryvným varováním; offsetové stránkování podle updated_at mohlo přeskočit záznam; smazaná místní data se automaticky vracela; neúplná nová offline cache mohla nahradit funkční starou. Dále doplněna validace historie a přepočet PR po smazání.
 
+## Testerské kolo 2026-10-22
+
+Opraveno: autosave po dokončení tréninku už neoživí smazaný rozpracovaný trénink; číslování pracovních sérií nepočítá rozcvičky; české skloňování („2 cviky“) a desetinná čárka všude (formatNumber); hledání cviků bez diakritiky a podle českých aliasů v katalogu; prázdný stav hledání; segmentové přepínače se na 375 px nelámou; editor plánu hlídá neuložené změny a neplatné cíle sérií; přehled plánu ukazuje údaje podle typu měření; CSV má BOM a místní čas; sken má timeout a hlášku o denním limitu; potvrzení odhlášení; čitelné chybové hlášky a ošetřené výjimky u mazání, opakování, kopírování a archivace; poškozená záloha hlásí srozumitelnou chybu; časovač pauzy vibruje a pípne; hlavička tréninku ukazuje délku.
+
+Zbývá: cíl z onboardingu se nikde nepoužívá; archivované plány nejde zobrazit ani obnovit; vlastní cviky nejde upravit ani smazat; názvy cviků jsou anglicky; osa grafu progresu je pořadí, ne datum; režimy Simple/Standard/Advanced jsou anglicky; plány se řadí podle poslední úpravy; po odebrání cviku zůstane neplatné supersetId; superset není vidět na kartě cviku; schema.sql `create policy` není idempotentní; kvóta skenu se odečte i při chybě vision volání; každá série zabírá dva řádky, trénink je dlouhý.
+
 ## Co ještě není finále
 
 1. Živá Supabase synchronizace, RLS, smazání účtu a Machine Scan na reálných strojích nejsou potvrzené. Nastavení a měření provozních nákladů vyžadují skutečný projekt a server.

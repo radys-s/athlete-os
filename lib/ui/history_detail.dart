@@ -41,7 +41,7 @@ class _HistoryDetailPageState extends State<HistoryDetailPage> {
     } catch (error) {
       if (mounted) {
         setState(() => saving = false);
-        toast(context, 'Uložení se nezdařilo: $error');
+        toast(context, 'Uložení se nezdařilo: ${errorText(error)}');
       }
     }
   }
@@ -88,6 +88,7 @@ class _HistoryDetailPageState extends State<HistoryDetailPage> {
                       SetRow(
                         key: ObjectKey(exercise.sets[j]),
                         index: j,
+                        number: setNumber(exercise.sets, j),
                         set: exercise.sets[j],
                         measurement: exercise.measurement,
                         showRir: app.mode != 'Simple',

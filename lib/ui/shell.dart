@@ -7,6 +7,7 @@ import 'plans_page.dart';
 import 'progress_page.dart';
 import 'settings_page.dart';
 import 'workout_page.dart';
+import 'common.dart';
 import 'onboarding.dart';
 import 'superset_editor.dart';
 
@@ -105,6 +106,7 @@ class AppShell extends StatefulWidget {
 
 class _AppShellState extends State<AppShell> {
   int tab = 0;
+  String? _shownActiveId;
 
   @override
   Widget build(BuildContext context) {
@@ -113,6 +115,10 @@ class _AppShellState extends State<AppShell> {
       listenable: app,
       builder: (context, _) {
         if (!app.locked && !app.onboardingComplete) return OnboardingPage(app);
+        // A workout started from History ("Zopakovat") opens the workout tab.
+        final activeId = app.active?.id;
+        if (activeId != null && _shownActiveId == null) tab = 0;
+        _shownActiveId = activeId;
         final focusLayout = app.layout == 'Soustředěný';
         if (focusLayout && tab == 3) tab = 0;
         final navigation = NavigationBar(
@@ -215,7 +221,7 @@ class _AppShellState extends State<AppShell> {
                                   SimpleDialogOption(
                                     onPressed: () => Navigator.pop(ctx, w.id),
                                     child: Text(
-                                      '${w.planName} · ${w.startedAt.toLocal()}',
+                                      '${w.planName} · ${formatDateTime(w.startedAt)}',
                                     ),
                                   ),
                               ],

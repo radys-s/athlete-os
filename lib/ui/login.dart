@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:supabase_flutter/supabase_flutter.dart' show AuthException;
 
 import '../app_controller.dart';
 import '../sync.dart';
+import 'common.dart';
 
 /// E-mail one-time-code login shared by the locked screen and Settings.
 class EmailCodeLogin extends StatefulWidget {
@@ -39,7 +41,8 @@ class _EmailCodeLoginState extends State<EmailCodeLogin> {
         if (mounted) setState(() => sent = true);
       }
     } catch (e) {
-      if (mounted) setState(() => error = 'Přihlášení selhalo: $e');
+      final reason = e is AuthException ? e.message : errorText(e);
+      if (mounted) setState(() => error = 'Přihlášení selhalo: $reason');
     } finally {
       if (mounted) setState(() => busy = false);
     }
@@ -58,9 +61,23 @@ class _EmailCodeLoginState extends State<EmailCodeLogin> {
       if (sent) ...[
         const SizedBox(height: 8),
         const Text('Poslali jsme ti kód. Opiš ho z e-mailu.'),
+        Align(
+          alignment: Alignment.centerLeft,
+          child: TextButton(
+            onPressed: busy
+                ? null
+                : () => setState(() {
+                    sent = false;
+                    code.clear();
+                    error = null;
+                  }),
+            child: const Text('Změnit e-mail nebo poslat znovu'),
+          ),
+        ),
         TextField(
           controller: code,
           keyboardType: TextInputType.number,
+          autofillHints: const [AutofillHints.oneTimeCode],
           decoration: const InputDecoration(labelText: 'Kód z e-mailu'),
         ),
       ],

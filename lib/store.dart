@@ -21,10 +21,14 @@ class LocalStore {
     String kind,
     Map<String, dynamic> data, {
     bool dirty = true,
+    bool reviveDeleted = true,
   }) async {
     final id = data['id'] as String;
     await db.transaction(() async {
       final prior = await raw(id);
+      // A late autosave must not bring back a workout that was already
+      // finished or discarded.
+      if (!reviveDeleted && prior?['deleted'] == 1) return;
       await db.customStatement(
         '''
         INSERT INTO entities(id,kind,payload,updated_at,dirty,deleted,conflict,remote_revision)
@@ -290,14 +294,18 @@ class LocalStore {
           'Záloha obsahuje neplatná nebo duplicitní ID.',
         );
       }
+      try {
+        switch (kind) {
+          case 'plan':
+            Plan.fromJson(payload);
+          case 'session':
+          case 'active':
+            Workout.fromJson(payload);
+        }
+      } on TypeError {
+        throw const FormatException('Záloha obsahuje poškozený záznam.');
+      }
       switch (kind) {
-        case 'plan':
-          Plan.fromJson(payload);
-          break;
-        case 'session':
-        case 'active':
-          Workout.fromJson(payload);
-          break;
         case 'exercise':
           if (payload['name'] is! String || payload['muscle'] is! String) {
             throw const FormatException('Záloha obsahuje neplatný cvik.');
