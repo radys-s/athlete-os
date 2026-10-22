@@ -37,16 +37,25 @@ class _ExercisePickerState extends State<ExercisePicker> {
     'Jiné',
   ];
 
-  Future<void> createCustom() async {
-    final name = TextEditingController();
-    String muscle = 'Ostatní';
-    String tool = 'Jiné';
-    MeasurementType measurement = MeasurementType.weighted;
+  /// Creates a custom exercise, or edits [existing] when given.
+  Future<void> editCustom([Map<String, dynamic>? existing]) async {
+    final name = TextEditingController(text: existing?['name'] as String?);
+    String muscle = muscles.contains(existing?['muscle'])
+        ? existing!['muscle'] as String
+        : 'Ostatní';
+    String tool = equipment.contains(existing?['equipment'])
+        ? existing!['equipment'] as String
+        : 'Jiné';
+    MeasurementType measurement = MeasurementType.parse(
+      existing?['measurement'],
+    );
+    final id = existing?['id'] as String?;
+    final locked = id != null && widget.app.exerciseInUse(id);
     final result = await showDialog<bool>(
       context: context,
       builder: (context) => StatefulBuilder(
         builder: (context, update) => AlertDialog(
-          title: const Text('Vlastní cvik'),
+          title: Text(existing == null ? 'Vlastní cvik' : 'Upravit cvik'),
           content: SingleChildScrollView(
             child: Column(
               mainAxisSize: MainAxisSize.min,
@@ -79,8 +88,14 @@ class _ExercisePickerState extends State<ExercisePicker> {
                         (m) => DropdownMenuItem(value: m, child: Text(m.label)),
                       )
                       .toList(),
-                  onChanged: (v) => update(() => measurement = v!),
+                  onChanged: locked
+                      ? null
+                      : (v) => update(() => measurement = v!),
                 ),
+                if (locked)
+                  const Text(
+                    'Způsob měření nejde změnit, cvik už je v plánu nebo historii.',
+                  ),
                 const Text(
                   'U vlastní váhy zapisuj jen přidanou zátěž, ne tělesnou hmotnost.',
                 ),
@@ -94,7 +109,7 @@ class _ExercisePickerState extends State<ExercisePicker> {
             ),
             FilledButton(
               onPressed: () => Navigator.pop(context, true),
-              child: const Text('Vytvořit'),
+              child: Text(existing == null ? 'Vytvořit' : 'Uložit'),
             ),
           ],
         ),
@@ -109,6 +124,7 @@ class _ExercisePickerState extends State<ExercisePicker> {
           muscle,
           tool,
           measurement: measurement,
+          id: id,
         );
         if (mounted) setState(() {});
       } catch (error) {
@@ -120,11 +136,34 @@ class _ExercisePickerState extends State<ExercisePicker> {
     name.dispose();
   }
 
+  Future<void> deleteCustom(Map<String, dynamic> exercise) async {
+    final id = exercise['id'] as String;
+    if (!await confirmDialog(
+      context,
+      title: 'Smazat cvik?',
+      body:
+          '„${exercise['name']}“ zmizí ze seznamu cviků. Plány a historie '
+          'ho dál ukážou.',
+      confirmLabel: 'Smazat',
+    )) {
+      return;
+    }
+    try {
+      await widget.app.deleteExercise(id);
+      if (mounted) setState(() {});
+    } catch (error) {
+      if (mounted) {
+        toast(context, 'Cvik se nepodařilo smazat: ${errorText(error)}');
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final exercises = [...builtInExercises, ...widget.app.customExercises]
         .where(
           (e) =>
+              e['hidden'] != true &&
               exerciseMatches(e, query) &&
               (muscleFilter == 'Vše' || e['muscle'] == muscleFilter) &&
               (equipmentFilter == 'Vše' || e['equipment'] == equipmentFilter),
@@ -197,6 +236,24 @@ class _ExercisePickerState extends State<ExercisePicker> {
                     ),
                     onTap: () =>
                         Navigator.pop(context, exercise['id'] as String),
+                    trailing: widget.app.customExercises.contains(exercise)
+                        ? PopupMenuButton<String>(
+                            tooltip: 'Upravit vlastní cvik',
+                            onSelected: (action) => action == 'edit'
+                                ? editCustom(exercise)
+                                : deleteCustom(exercise),
+                            itemBuilder: (_) => const [
+                              PopupMenuItem(
+                                value: 'edit',
+                                child: Text('Upravit'),
+                              ),
+                              PopupMenuItem(
+                                value: 'delete',
+                                child: Text('Smazat'),
+                              ),
+                            ],
+                          )
+                        : null,
                   ),
               ],
             ),
@@ -210,7 +267,7 @@ class _ExercisePickerState extends State<ExercisePicker> {
             children: [
               Expanded(
                 child: OutlinedButton.icon(
-                  onPressed: createCustom,
+                  onPressed: editCustom,
                   icon: const Icon(Icons.add),
                   label: const Text('Vlastní cvik'),
                 ),

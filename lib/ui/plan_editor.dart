@@ -136,7 +136,11 @@ class _PlanEditorState extends State<PlanEditor> {
                   ),
                   onUp: i == 0 ? null : () => move(i, i - 1),
                   onDown: i == items.length - 1 ? null : () => move(i, i + 1),
-                  onRemove: () => setState(() => items.removeAt(i)),
+                  onRemove: () => setState(() {
+                    _invalidTargets.remove(items[i].id);
+                    items.removeAt(i);
+                    dropLoneSupersets([for (final e in items) e.extra]);
+                  }),
                   onTargetsValid: (valid) => valid
                       ? _invalidTargets.remove(items[i].id)
                       : _invalidTargets.add(items[i].id),

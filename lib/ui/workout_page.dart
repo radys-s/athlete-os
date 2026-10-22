@@ -507,110 +507,117 @@ class _SetRowState extends State<SetRow> {
     final set = widget.set;
     final index = widget.index;
     final number = widget.number ?? index + 1;
+    final timed = widget.measurement == MeasurementType.timed;
+    final showRir = widget.showRir && set.kind == 'work' && !timed;
+    InputDecoration field(String label, String? error) => InputDecoration(
+      labelText: label,
+      errorText: validate ? error : null,
+      errorMaxLines: 3,
+      isDense: true,
+    );
+    // One line per set: number, load, reps, RIR, done, remove. Keeps a
+    // five-exercise workout on a few screens instead of a dozen.
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4),
-      child: Column(
+      padding: const EdgeInsets.symmetric(vertical: 2),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            children: [
-              SizedBox(
-                width: 52,
+          SizedBox(
+            width: 48,
+            child: Padding(
+              padding: const EdgeInsets.only(top: 14),
+              child: FittedBox(
+                fit: BoxFit.scaleDown,
+                alignment: Alignment.centerLeft,
                 child: Text(
-                  set.kind == 'warmup'
-                      ? 'R $number'
-                      : '$number. / ${set.target}',
+                  set.kind == 'warmup' ? 'R $number' : '$number./${set.target}',
+                  style: set.kind == 'warmup'
+                      ? TextStyle(color: Theme.of(context).hintColor)
+                      : null,
                 ),
               ),
-              if (widget.measurement != MeasurementType.timed)
-                Expanded(
-                  child: TextFormField(
-                    initialValue: weightText,
-                    keyboardType: const TextInputType.numberWithOptions(
-                      decimal: true,
-                    ),
-                    decoration: InputDecoration(
-                      labelText: widget.measurement.weightLabel,
-                      errorText: validate ? weightError : null,
-                    ),
+            ),
+          ),
+          if (!timed) ...[
+            Expanded(
+              child: TextFormField(
+                initialValue: weightText,
+                keyboardType: const TextInputType.numberWithOptions(
+                  decimal: true,
+                ),
+                decoration: field(widget.measurement.weightLabel, weightError),
+                onChanged: (v) {
+                  weightText = v;
+                  final value = parseNum(v);
+                  set.weight = value != null && value.isFinite ? value : 0;
+                  edited();
+                },
+              ),
+            ),
+            const SizedBox(width: 6),
+          ],
+          SizedBox(
+            width: timed ? null : 52,
+            child: timed
+                ? null
+                : TextFormField(
+                    initialValue: repsText,
+                    keyboardType: TextInputType.number,
+                    decoration: field('reps', repsError),
                     onChanged: (v) {
-                      weightText = v;
-                      final value = parseNum(v);
-                      set.weight = value != null && value.isFinite ? value : 0;
+                      repsText = v;
+                      set.reps = int.tryParse(v) ?? 0;
                       edited();
                     },
                   ),
-                ),
-              const SizedBox(width: 8),
-              SizedBox(
-                width: 68,
-                child: TextFormField(
-                  initialValue: widget.measurement == MeasurementType.timed
-                      ? secondsText
-                      : repsText,
-                  keyboardType: TextInputType.number,
-                  decoration: InputDecoration(
-                    labelText: widget.measurement == MeasurementType.timed
-                        ? 'sekundy'
-                        : 'reps',
-                    errorText: validate
-                        ? (widget.measurement == MeasurementType.timed
-                              ? secondsError
-                              : repsError)
-                        : null,
-                  ),
-                  onChanged: (v) {
-                    if (widget.measurement == MeasurementType.timed) {
-                      secondsText = v;
-                      set.seconds = int.tryParse(v) ?? 0;
-                    } else {
-                      repsText = v;
-                      set.reps = int.tryParse(v) ?? 0;
-                    }
-                    edited();
-                  },
-                ),
-              ),
-              Semantics(
-                label: set.kind == 'warmup'
-                    ? 'Dokončena rozcvičovací série $number'
-                    : 'Dokončena série $number',
-                child: Checkbox(
-                  value: set.done,
-                  onChanged: (value) => toggleDone(value == true),
-                ),
-              ),
-            ],
           ),
-          Row(
-            children: [
-              const SizedBox(width: 52),
-              if (widget.showRir &&
-                  set.kind == 'work' &&
-                  widget.measurement != MeasurementType.timed)
-                SizedBox(
-                  width: 64,
-                  child: TextFormField(
+          if (timed)
+            Expanded(
+              child: TextFormField(
+                initialValue: secondsText,
+                keyboardType: TextInputType.number,
+                decoration: field('sekundy', secondsError),
+                onChanged: (v) {
+                  secondsText = v;
+                  set.seconds = int.tryParse(v) ?? 0;
+                  edited();
+                },
+              ),
+            ),
+          const SizedBox(width: 6),
+          SizedBox(
+            width: 44,
+            child: showRir
+                ? TextFormField(
                     initialValue: rirText,
                     keyboardType: TextInputType.number,
-                    decoration: InputDecoration(
-                      labelText: 'RIR',
-                      errorText: validate ? rirError : null,
-                    ),
+                    decoration: field('RIR', rirError),
                     onChanged: (v) {
                       rirText = v;
                       set.rir = int.tryParse(v);
                       edited();
                     },
-                  ),
-                ),
-              const Spacer(),
-              IconButton(
-                tooltip: 'Odebrat sérii',
-                onPressed: widget.onRemove,
-                icon: const Icon(Icons.close, size: 18),
-                visualDensity: VisualDensity.compact,
-              ),
-            ],
+                  )
+                : null,
+          ),
+          Semantics(
+            label: set.kind == 'warmup'
+                ? 'Dokončena rozcvičovací série $number'
+                : 'Dokončena série $number',
+            child: Checkbox(
+              value: set.done,
+              onChanged: (value) => toggleDone(value == true),
+            ),
+          ),
+          SizedBox(
+            width: 28,
+            child: IconButton(
+              tooltip: 'Odebrat sérii',
+              onPressed: widget.onRemove,
+              icon: const Icon(Icons.close, size: 16),
+              padding: EdgeInsets.zero,
+              visualDensity: VisualDensity.compact,
+            ),
           ),
         ],
       ),

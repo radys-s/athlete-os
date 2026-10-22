@@ -103,6 +103,19 @@ bool exerciseMatches(Map<String, dynamic> exercise, String query) {
   return words.every(haystack.contains);
 }
 
+/// Removes superset ids that only one exercise still carries, e.g. after
+/// its partner was removed, so no superset of one stays behind.
+void dropLoneSupersets(List<Map<String, dynamic>> extras) {
+  final counts = <Object, int>{};
+  for (final extra in extras) {
+    final group = extra['supersetId'];
+    if (group != null) counts[group] = (counts[group] ?? 0) + 1;
+  }
+  for (final extra in extras) {
+    if (counts[extra['supersetId']] == 1) extra.remove('supersetId');
+  }
+}
+
 String exerciseName(String id, List<Map<String, dynamic>> custom) {
   for (final exercise in [...builtInExercises, ...custom]) {
     if (exercise['id'] == id) return exercise['name'] as String;

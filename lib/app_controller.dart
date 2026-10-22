@@ -15,6 +15,7 @@ class AppController extends ChangeNotifier with WidgetsBindingObserver {
   final LocalStore store;
   late final CloudSync cloud = CloudSync(store);
   List<Plan> plans = [];
+  List<Plan> archivedPlans = [];
   List<Workout> sessions = []; // newest finished workout first
   List<Map<String, dynamic>> customExercises = [];
   List<Map<String, dynamic>> conflicts = [];
@@ -63,10 +64,9 @@ class AppController extends ChangeNotifier with WidgetsBindingObserver {
   }
 
   Future<void> reload() async {
-    plans = (await store.all('plan'))
-        .map(Plan.fromJson)
-        .where((plan) => !plan.archived)
-        .toList();
+    final allPlans = (await store.all('plan')).map(Plan.fromJson).toList();
+    plans = allPlans.where((plan) => !plan.archived).toList();
+    archivedPlans = allPlans.where((plan) => plan.archived).toList();
     sessions = (await store.all('session')).map(Workout.fromJson).toList()
       ..sort(
         (a, b) => (b.finishedAt ?? b.startedAt).compareTo(
@@ -223,20 +223,58 @@ class AppController extends ChangeNotifier with WidgetsBindingObserver {
     return count;
   }
 
+  /// Creates a custom exercise, or updates the one with [id].
   Future<void> saveExercise(
     String name,
     String muscle,
     String equipment, {
     MeasurementType measurement = MeasurementType.weighted,
+    String? id,
   }) async {
     _requireUnlocked();
+    if (name.trim().isEmpty) throw StateError('Cvik potřebuje název.');
+    Map<String, dynamic>? prior;
+    for (final e in customExercises) {
+      if (id != null && e['id'] == id) prior = e;
+    }
+    if (id != null && prior == null) throw StateError('Cvik už neexistuje.');
+    if (prior != null &&
+        MeasurementType.parse(prior['measurement']) != measurement &&
+        exerciseInUse(id!)) {
+      throw StateError(
+        'Způsob měření nejde změnit, cvik už je v plánu nebo historii.',
+      );
+    }
     await store.put('exercise', {
-      'id': newId(),
+      ...?prior,
+      'id': id ?? newId(),
       'name': name.trim(),
       'muscle': muscle,
       'equipment': equipment,
       'measurement': measurement.name,
     });
+    await reload();
+    unawaited(sync());
+  }
+
+  /// Whether any plan, archived plan, finished or active workout uses [id].
+  bool exerciseInUse(String id) =>
+      [
+        ...plans,
+        ...archivedPlans,
+      ].any((p) => p.exercises.any((e) => e.exerciseId == id)) ||
+      [
+        ...sessions,
+        ?active,
+      ].any((w) => w.exercises.any((e) => e.exerciseId == id));
+
+  /// Hides a custom exercise from the picker. The record stays, so plans
+  /// and history on this or another device still show its name.
+  Future<void> deleteExercise(String id) async {
+    _requireUnlocked();
+    final exercise = customExercises.where((e) => e['id'] == id).firstOrNull;
+    if (exercise == null) throw StateError('Cvik už neexistuje.');
+    await store.put('exercise', {...exercise, 'hidden': true});
     await reload();
     unawaited(sync());
   }
@@ -263,6 +301,17 @@ class AppController extends ChangeNotifier with WidgetsBindingObserver {
 
   Future<void> archivePlan(Plan plan) async {
     final copy = plan.copy()..archived = true;
+    await savePlan(copy);
+  }
+
+  Future<void> restorePlan(Plan plan) async {
+    // Another device may have deleted the plan since the archive was shown.
+    final stored = await store.raw(plan.id);
+    if (stored == null || stored['deleted'] == 1) {
+      await reload();
+      throw StateError('Plán už neexistuje.');
+    }
+    final copy = plan.copy()..archived = false;
     await savePlan(copy);
   }
 
@@ -427,6 +476,8 @@ class AppController extends ChangeNotifier with WidgetsBindingObserver {
         ],
       );
     }).toList();
+    // Older plans may still carry a superset whose partner was removed.
+    dropLoneSupersets([for (final e in exercises) e.extra]);
     final workout = Workout(
       id: newId(),
       planId: plan.id,

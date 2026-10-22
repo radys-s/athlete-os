@@ -57,7 +57,68 @@ class PlansPage extends StatelessWidget {
           ),
         ),
       for (final plan in app.plans) _PlanCard(app: app, plan: plan),
+      if (app.archivedPlans.isNotEmpty)
+        Align(
+          child: TextButton.icon(
+            onPressed: () => Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => ArchivedPlansPage(app)),
+            ),
+            icon: const Icon(Icons.inventory_2_outlined),
+            label: Text('Archiv plánů (${app.archivedPlans.length})'),
+          ),
+        ),
     ],
+  );
+}
+
+class ArchivedPlansPage extends StatelessWidget {
+  final AppController app;
+  const ArchivedPlansPage(this.app, {super.key});
+
+  @override
+  Widget build(BuildContext context) => Scaffold(
+    appBar: AppBar(title: const Text('Archiv plánů')),
+    body: ListenableBuilder(
+      listenable: app,
+      builder: (context, _) => app.archivedPlans.isEmpty
+          ? const Center(child: Text('Archiv je prázdný.'))
+          : ListView(
+              padding: const EdgeInsets.all(12),
+              children: [
+                for (final plan in app.archivedPlans)
+                  ListTile(
+                    title: Text(plan.name),
+                    subtitle: Text(
+                      czechCount(
+                        plan.exercises.length,
+                        'cvik',
+                        'cviky',
+                        'cviků',
+                      ),
+                    ),
+                    trailing: TextButton(
+                      onPressed: () async {
+                        try {
+                          await app.restorePlan(plan);
+                          if (context.mounted) {
+                            toast(context, 'Plán „${plan.name}“ je zpět.');
+                          }
+                        } catch (error) {
+                          if (context.mounted) {
+                            toast(
+                              context,
+                              'Plán se nepodařilo obnovit: ${errorText(error)}',
+                            );
+                          }
+                        }
+                      },
+                      child: const Text('Obnovit'),
+                    ),
+                  ),
+              ],
+            ),
+    ),
   );
 }
 

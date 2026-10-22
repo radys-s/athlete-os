@@ -22,7 +22,9 @@ Opravené nálezy: druhá záložka zapisovala pod překryvným varováním; off
 
 Opraveno: autosave po dokončení tréninku už neoživí smazaný rozpracovaný trénink; číslování pracovních sérií nepočítá rozcvičky; české skloňování („2 cviky“) a desetinná čárka všude (formatNumber); hledání cviků bez diakritiky a podle českých aliasů v katalogu; prázdný stav hledání; segmentové přepínače se na 375 px nelámou; editor plánu hlídá neuložené změny a neplatné cíle sérií; přehled plánu ukazuje údaje podle typu měření; CSV má BOM a místní čas; sken má timeout a hlášku o denním limitu; potvrzení odhlášení; čitelné chybové hlášky a ošetřené výjimky u mazání, opakování, kopírování a archivace; poškozená záloha hlásí srozumitelnou chybu; časovač pauzy vibruje a pípne; hlavička tréninku ukazuje délku.
 
-Zbývá: cíl z onboardingu se nikde nepoužívá; archivované plány nejde zobrazit ani obnovit; vlastní cviky nejde upravit ani smazat; názvy cviků jsou anglicky; osa grafu progresu je pořadí, ne datum; režimy Simple/Standard/Advanced jsou anglicky; plány se řadí podle poslední úpravy; po odebrání cviku zůstane neplatné supersetId; superset není vidět na kartě cviku; schema.sql `create policy` není idempotentní; kvóta skenu se odečte i při chybě vision volání; každá série zabírá dva řádky, trénink je dlouhý.
+Druhé kolo téhož dne: série v tréninku jsou na jednom řádku; superset s jediným zbylým cvikem se ruší (při odebrání cviku v tréninku i v editoru a při startu staršího plánu); archiv plánů s obnovou (obnova ověří, že plán mezitím nesmazalo jiné zařízení); vlastní cvik jde upravit a smazat. Smazání cvik jen skryje z výběru, aby plány a historie i na jiných zařízeních dál ukazovaly jeho název. Způsob měření nejde změnit u cviku, který už je v plánu nebo historii.
+
+Zbývá: cíl z onboardingu se nikde nepoužívá; názvy cviků jsou anglicky; osa grafu progresu je pořadí, ne datum; režimy Simple/Standard/Advanced jsou anglicky; plány se řadí podle poslední úpravy; superset není vidět na kartě cviku; schema.sql `create policy` není idempotentní; kvóta skenu se odečte i při chybě vision volání.
 
 ## Co ještě není finále
 

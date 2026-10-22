@@ -74,6 +74,7 @@ extension WorkoutControls on AppController {
       throw StateError('Odebrání dokončených sérií vyžaduje potvrzení.');
     }
     workout.exercises.remove(exercise);
+    dropLoneSupersets([for (final e in workout.exercises) e.extra]);
     touchActive();
     notifyListeners();
     await flushActive();

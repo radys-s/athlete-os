@@ -36,4 +36,15 @@ void main() {
     expect(setNumber(sets, 2), 1);
     expect(setNumber(sets, 3), 2);
   });
+
+  test('dropLoneSupersets keeps pairs and clears singles', () {
+    final extras = [
+      <String, dynamic>{'supersetId': 'a'},
+      <String, dynamic>{'supersetId': 'a'},
+      <String, dynamic>{'supersetId': 'b'},
+      <String, dynamic>{},
+    ];
+    dropLoneSupersets(extras);
+    expect(extras.map((e) => e['supersetId']), ['a', 'a', null, null]);
+  });
 }

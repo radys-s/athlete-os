@@ -414,4 +414,54 @@ void main() {
       }
     },
   );
+
+  test('archived plan can be restored', () async {
+    await app.savePlan(_plan());
+    await app.archivePlan(app.plans.single);
+    expect(app.plans, isEmpty);
+    expect(app.archivedPlans.single.name, 'Push');
+    await app.restorePlan(app.archivedPlans.single);
+    expect(app.plans.single.name, 'Push');
+    expect(app.archivedPlans, isEmpty);
+  });
+
+  test('lone superset id from an older plan is dropped on start', () async {
+    final plan = _plan();
+    plan.exercises.single.extra['supersetId'] = 'gone';
+    await app.savePlan(plan);
+    await app.startPlan(app.plans.single);
+    expect(app.active!.exercises.single.extra['supersetId'], isNull);
+  });
+
+  test(
+    'custom exercise can be renamed and hidden without losing its name',
+    () async {
+      await app.saveExercise('Kettlebell swing', 'Nohy', 'Jiné');
+      final id = app.customExercises.single['id'] as String;
+      await app.saveExercise('KB swing', 'Nohy', 'Jiné', id: id);
+      expect(app.customExercises.single['name'], 'KB swing');
+      expect(app.customExercises.length, 1);
+
+      final plan = _plan();
+      plan.exercises.single.exerciseId = id;
+      await app.savePlan(plan);
+      expect(app.exerciseInUse(id), isTrue);
+      await expectLater(
+        app.saveExercise(
+          'KB swing',
+          'Nohy',
+          'Jiné',
+          id: id,
+          measurement: MeasurementType.timed,
+        ),
+        throwsStateError,
+      );
+
+      await app.deleteExercise(id);
+      expect(app.customExercises.single['hidden'], isTrue);
+      expect(exerciseName(id, app.customExercises), 'KB swing');
+      await expectLater(app.deleteExercise('plan-1'), throwsStateError);
+      expect(app.plans.single.id, 'plan-1');
+    },
+  );
 }
