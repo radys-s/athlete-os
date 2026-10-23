@@ -79,7 +79,7 @@ class _OnboardingPageState extends State<OnboardingPage> {
                 ])
                   ListTile(
                     selected: mode == item.$1,
-                    title: Text(item.$1),
+                    title: Text(modeLabel(item.$1)),
                     subtitle: Text(item.$2),
                     trailing: Icon(
                       mode == item.$1

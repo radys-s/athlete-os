@@ -1,4 +1,5 @@
 import 'package:athlete_os/models.dart';
+import 'package:athlete_os/ui/common.dart';
 import 'package:athlete_os/ui/workout_page.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -46,5 +47,11 @@ void main() {
     ];
     dropLoneSupersets(extras);
     expect(extras.map((e) => e['supersetId']), ['a', 'a', null, null]);
+  });
+
+  test('detail modes have Czech labels', () {
+    expect(modeLabel('Simple'), 'Jednoduchý');
+    expect(modeLabel('Standard'), 'Standardní');
+    expect(modeLabel('Advanced'), 'Pokročilý');
   });
 }

@@ -197,10 +197,9 @@ class SettingsPage extends StatelessWidget {
       Text('Úroveň detailu', style: Theme.of(context).textTheme.titleLarge),
       SegmentedButton<String>(
         showSelectedIcon: false,
-        segments: const [
-          ButtonSegment(value: 'Simple', label: Text('Simple')),
-          ButtonSegment(value: 'Standard', label: Text('Standard')),
-          ButtonSegment(value: 'Advanced', label: Text('Advanced')),
+        segments: [
+          for (final mode in const ['Simple', 'Standard', 'Advanced'])
+            ButtonSegment(value: mode, label: Text(modeLabel(mode))),
         ],
         selected: {app.mode},
         onSelectionChanged: (v) => app.setPreferences(newMode: v.first),

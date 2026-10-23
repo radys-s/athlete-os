@@ -41,6 +41,7 @@ class _ProgressPageState extends State<ProgressPage> {
     }
     final measurement = selectedMeasurement!;
     final points = <FlSpot>[];
+    final dates = <DateTime>[];
     double? bestValue;
     double bestE1rm = 0;
     final ordered = [...app.sessions]
@@ -78,6 +79,7 @@ class _ProgressPageState extends State<ProgressPage> {
       }
       if (sessionBest != null) {
         points.add(FlSpot(points.length.toDouble(), sessionBest));
+        dates.add((session.finishedAt ?? session.startedAt).toLocal());
       }
     }
     final metricLabel = switch (measurement) {
@@ -143,12 +145,40 @@ class _ProgressPageState extends State<ProgressPage> {
             LineChartData(
               minY: 0,
               gridData: const FlGridData(show: true),
-              titlesData: const FlTitlesData(
-                topTitles: AxisTitles(
+              titlesData: FlTitlesData(
+                topTitles: const AxisTitles(
                   sideTitles: SideTitles(showTitles: false),
                 ),
-                rightTitles: AxisTitles(
+                rightTitles: const AxisTitles(
                   sideTitles: SideTitles(showTitles: false),
+                ),
+                // Points stay evenly spaced per workout; the axis names the
+                // day of each one, at most about five labels.
+                bottomTitles: AxisTitles(
+                  sideTitles: SideTitles(
+                    showTitles: true,
+                    reservedSize: 24,
+                    interval: 1,
+                    getTitlesWidget: (value, meta) {
+                      final i = value.round();
+                      final last = dates.length - 1;
+                      final step = (last / 4).ceil().clamp(1, 1 << 30);
+                      // Every step-th workout plus always the newest one,
+                      // unless that would crowd the label before it.
+                      final shown =
+                          i == last || (i % step == 0 && last - i >= step / 2);
+                      if (value != i || i < 0 || i > last || !shown) {
+                        return const SizedBox.shrink();
+                      }
+                      return SideTitleWidget(
+                        meta: meta,
+                        child: Text(
+                          '${dates[i].day}. ${dates[i].month}.',
+                          style: Theme.of(context).textTheme.bodySmall,
+                        ),
+                      );
+                    },
+                  ),
                 ),
               ),
               lineBarsData: [

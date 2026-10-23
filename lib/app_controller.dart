@@ -64,7 +64,9 @@ class AppController extends ChangeNotifier with WidgetsBindingObserver {
   }
 
   Future<void> reload() async {
-    final allPlans = (await store.all('plan')).map(Plan.fromJson).toList();
+    // Alphabetical, so a plan does not jump to the top after every edit.
+    final allPlans = (await store.all('plan')).map(Plan.fromJson).toList()
+      ..sort((a, b) => searchKey(a.name).compareTo(searchKey(b.name)));
     plans = allPlans.where((plan) => !plan.archived).toList();
     archivedPlans = allPlans.where((plan) => plan.archived).toList();
     sessions = (await store.all('session')).map(Workout.fromJson).toList()

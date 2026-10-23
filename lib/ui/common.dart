@@ -63,6 +63,14 @@ String formatTime(DateTime value) {
 }
 
 /// 75 -> "1:15", 45 -> "45 s".
+/// Czech label of a stored detail mode. Stored values stay English so
+/// settings sync between app versions.
+String modeLabel(String mode) => switch (mode) {
+  'Simple' => 'Jednoduchý',
+  'Advanced' => 'Pokročilý',
+  _ => 'Standardní',
+};
+
 String formatSeconds(int seconds) {
   if (seconds < 60) return '$seconds s';
   return '${seconds ~/ 60}:${(seconds % 60).toString().padLeft(2, '0')}';

@@ -464,4 +464,16 @@ void main() {
       expect(app.plans.single.id, 'plan-1');
     },
   );
+
+  test('plans stay in alphabetical order after an edit', () async {
+    final b = _plan()..name = 'Záda';
+    final a = Plan.fromJson(_plan().toJson())
+      ..id = 'plan-2'
+      ..name = 'Hrudník';
+    await app.savePlan(b);
+    await app.savePlan(a);
+    expect(app.plans.map((p) => p.name), ['Hrudník', 'Záda']);
+    await app.savePlan(app.plans.first..name = 'Hrudník 2');
+    expect(app.plans.map((p) => p.name), ['Hrudník 2', 'Záda']);
+  });
 }

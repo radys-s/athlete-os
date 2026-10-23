@@ -66,7 +66,7 @@ void main() {
       expect(find.text('ATHLETE OS · 1/3'), findsOneWidget);
       await tester.tap(find.text('Pokračovat'));
       await tester.pumpAndSettle();
-      await tester.tap(find.text('Simple'));
+      await tester.tap(find.text('Jednoduchý'));
       await tester.tap(find.text('Pokračovat'));
       await tester.pumpAndSettle();
       await tester.tap(find.text('Detailní'));

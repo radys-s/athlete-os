@@ -24,7 +24,9 @@ Opraveno: autosave po dokončení tréninku už neoživí smazaný rozpracovaný
 
 Druhé kolo téhož dne: série v tréninku jsou na jednom řádku; superset s jediným zbylým cvikem se ruší (při odebrání cviku v tréninku i v editoru a při startu staršího plánu); archiv plánů s obnovou (obnova ověří, že plán mezitím nesmazalo jiné zařízení); vlastní cvik jde upravit a smazat. Smazání cvik jen skryje z výběru, aby plány a historie i na jiných zařízeních dál ukazovaly jeho název. Způsob měření nejde změnit u cviku, který už je v plánu nebo historii.
 
-Zbývá: cíl z onboardingu se nikde nepoužívá; názvy cviků jsou anglicky; osa grafu progresu je pořadí, ne datum; režimy Simple/Standard/Advanced jsou anglicky; plány se řadí podle poslední úpravy; superset není vidět na kartě cviku; schema.sql `create policy` není idempotentní; kvóta skenu se odečte i při chybě vision volání.
+Třetí kolo (2026-10-23): názvy cviků v katalogu jsou česky, anglické názvy zůstaly v aliasech pro hledání (ID beze změny, CSV export teď píše české názvy i u staré historie); režimy úrovně detailu mají české popisky, uložené hodnoty zůstaly Simple/Standard/Advanced kvůli synchronizaci; osa grafu progresu ukazuje datum tréninku a vždy i ten poslední; plány se řadí abecedně; karta cviku ukazuje „Superset A · s …“ a ovládání supersetů se přesunulo z pevného pruhu nad tréninkem do seznamu.
+
+Zbývá: cíl z onboardingu se nikde nepoužívá; schema.sql `create policy` není idempotentní; kvóta skenu se odečte i při chybě vision volání.
 
 ## Co ještě není finále
 

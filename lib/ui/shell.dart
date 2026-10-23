@@ -9,7 +9,6 @@ import 'settings_page.dart';
 import 'workout_page.dart';
 import 'common.dart';
 import 'onboarding.dart';
-import 'superset_editor.dart';
 
 class AthleteApp extends StatelessWidget {
   final AppController controller;
@@ -191,16 +190,6 @@ class _AppShellState extends State<AppShell> {
             child: Column(
               children: [
                 if (!app.locked && app.layout == 'Detailní') navigation,
-                if (!app.locked && tab == 0 && app.active != null)
-                  ConstrainedBox(
-                    constraints: const BoxConstraints(maxHeight: 160),
-                    child: SingleChildScrollView(
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 16),
-                        child: SupersetEditor(app),
-                      ),
-                    ),
-                  ),
                 if (!app.locked && app.otherActiveWorkouts.isNotEmpty)
                   MaterialBanner(
                     content: Text(

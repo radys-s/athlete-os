@@ -9,6 +9,7 @@ import '../supersets.dart';
 import '../workout_controls.dart';
 import 'common.dart';
 import 'exercise_picker.dart';
+import 'superset_editor.dart';
 
 class WorkoutPage extends StatefulWidget {
   final AppController app;
@@ -247,6 +248,7 @@ class _WorkoutPageState extends State<WorkoutPage> {
             ),
           ),
         ),
+        SupersetEditor(app),
         for (final exercise in w.exercises)
           _ExerciseCard(
             key: ValueKey(
@@ -356,6 +358,28 @@ class _ExerciseCardState extends State<_ExerciseCard> {
                 ),
               ],
             ),
+            if (_supersetLabel(app, exercise) case final label?)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 4),
+                child: Row(
+                  children: [
+                    Icon(
+                      Icons.link,
+                      size: 16,
+                      color: Theme.of(context).colorScheme.primary,
+                    ),
+                    const SizedBox(width: 4),
+                    Expanded(
+                      child: Text(
+                        label,
+                        style: TextStyle(
+                          color: Theme.of(context).colorScheme.primary,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
             const SizedBox(height: 4),
             Text(
               previous == null
@@ -422,6 +446,27 @@ class _ExerciseCardState extends State<_ExerciseCard> {
       ),
     );
   }
+}
+
+/// "Superset A · s Kliky" for a grouped exercise; letters follow the order
+/// in which groups first appear in the workout.
+String? _supersetLabel(AppController app, WorkoutExercise exercise) {
+  final workout = app.active;
+  final group = supersetId(exercise);
+  if (workout == null || group == null) return null;
+  final groups = <String>[];
+  for (final e in workout.exercises) {
+    final id = supersetId(e);
+    if (id != null && !groups.contains(id)) groups.add(id);
+  }
+  final others = supersetMembers(
+    workout,
+    exercise,
+  ).where((e) => e != exercise).toList();
+  if (others.isEmpty) return null;
+  final letter = String.fromCharCode(65 + groups.indexOf(group) % 26);
+  return 'Superset $letter · s '
+      '${others.map((e) => exerciseName(e.exerciseId, app.customExercises)).join(', ')}';
 }
 
 /// Position of [sets][index] among sets of the same kind, counted from 1,
