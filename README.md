@@ -24,7 +24,7 @@ Pozor při vývoji: po `flutter build web` restartuj lokální server, jinak ser
 
 ## Účet a synchronizace
 
-Vytvoř Supabase projekt a spusť SQL z `supabase/schema.sql`. V Supabase Auth nastav redirect URL `athleteos://login-callback/` a povol přihlášení e-mailem. Aplikaci sestav s:
+Vytvoř Supabase projekt a spusť SQL z `supabase/schema.sql` (jde spustit opakovaně). Existující projekt aktualizuj migracemi ze `supabase/migrations/` ve vzestupném pořadí. V Supabase Auth nastav redirect URL `athleteos://login-callback/` a povol přihlášení e-mailem. Aplikaci sestav s:
 
 ```powershell
 flutter run --dart-define=SUPABASE_URL=https://YOUR_PROJECT.supabase.co --dart-define=SUPABASE_PUBLISHABLE_KEY=YOUR_PUBLISHABLE_KEY

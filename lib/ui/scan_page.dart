@@ -64,6 +64,12 @@ class _ScanPageState extends State<ScanPage> {
         if (mounted) setState(() => busy = false);
         return;
       }
+      if (response.statusCode == 422) {
+        error =
+            'Fotku se nepodařilo zpracovat. Zkus jinou nebo vyber cvik ručně.';
+        if (mounted) setState(() => busy = false);
+        return;
+      }
       if (response.statusCode != 200) {
         throw Exception('Server vrátil ${response.statusCode}');
       }
@@ -85,7 +91,7 @@ class _ScanPageState extends State<ScanPage> {
 
   @override
   Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(title: const Text('Machine Scan')),
+    appBar: AppBar(title: const Text('Sken stroje')),
     body: ListView(
       padding: const EdgeInsets.all(20),
       children: [

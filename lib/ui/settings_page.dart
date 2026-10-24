@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../app_controller.dart';
+import '../goals.dart';
 import '../csv_export.dart';
 import '../models.dart';
 import '../sync.dart';
@@ -203,6 +204,20 @@ class SettingsPage extends StatelessWidget {
         ],
         selected: {app.mode},
         onSelectionChanged: (v) => app.setPreferences(newMode: v.first),
+      ),
+      const SizedBox(height: 16),
+      DropdownButtonFormField<String>(
+        key: ValueKey(app.goal),
+        initialValue: goals.contains(app.goal) ? app.goal : goals.first,
+        decoration: const InputDecoration(
+          labelText: 'Hlavní cíl (souhrn v Progresu)',
+        ),
+        items: goals
+            .map((v) => DropdownMenuItem(value: v, child: Text(v)))
+            .toList(),
+        onChanged: (v) {
+          if (v != null) app.setPreferences(newGoal: v);
+        },
       ),
       const SizedBox(height: 16),
       Text('Uspořádání', style: Theme.of(context).textTheme.titleLarge),

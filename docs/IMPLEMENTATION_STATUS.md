@@ -26,7 +26,7 @@ Druhé kolo téhož dne: série v tréninku jsou na jednom řádku; superset s j
 
 Třetí kolo (2026-10-23): názvy cviků v katalogu jsou česky, anglické názvy zůstaly v aliasech pro hledání (ID beze změny, CSV export teď píše české názvy i u staré historie); režimy úrovně detailu mají české popisky, uložené hodnoty zůstaly Simple/Standard/Advanced kvůli synchronizaci; osa grafu progresu ukazuje datum tréninku a vždy i ten poslední; plány se řadí abecedně; karta cviku ukazuje „Superset A · s …“ a ovládání supersetů se přesunulo z pevného pruhu nad tréninkem do seznamu.
 
-Zbývá: cíl z onboardingu se nikde nepoužívá; schema.sql `create policy` není idempotentní; kvóta skenu se odečte i při chybě vision volání.
+Čtvrté kolo (2026-10-24): hlavní cíl z onboardingu řídí souhrnnou kartu nahoře v Progresu (Síla a svaly = překonané rekordy váhy za 28 dní; Pravidelný pohyb = tréninky tento týden a týdny v řadě; Udržet kondici = průměr tréninků týdně za 28 dní a odstup od posledního) a jde změnit v Nastavení. `supabase/schema.sql` jde spustit opakovaně (`drop policy if exists`). Kvóta skenu: server si sken nejdřív rezervuje (`reserve_scan`), po odpovědi vision služby ho započítá (`commit_scan`), při chybě vrátí (`release_scan`). Počítá se i sken, který stroj nepozná, a fotka, kterou vision služba odmítne (4xx); kvóta hlídá náklady a vadné nahrávky tak nejsou zdarma. Rezervace se vrací i při neočekávané chybě. Neúspěšné vrácení nebo započtení se neopakuje: uživatel přijde o jeden sken, nebo dostane jeden navíc. Na existujícím projektu je potřeba spustit `supabase/migrations/003_scan_reservation.sql` dřív, než se nasadí nový server. SQL je ověřené jen parserem (pglast), ne na živé databázi.
 
 ## Co ještě není finále
 

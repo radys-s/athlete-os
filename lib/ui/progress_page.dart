@@ -2,6 +2,7 @@ import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 
 import '../app_controller.dart';
+import '../goals.dart';
 import '../models.dart';
 import '../progression.dart';
 import 'common.dart';
@@ -27,7 +28,14 @@ class _ProgressPageState extends State<ProgressPage> {
         .toSet()
         .toList();
     if (ids.isEmpty) {
-      return const Center(child: Text('Grafy se objeví po prvním tréninku.'));
+      return ListView(
+        padding: const EdgeInsets.all(16),
+        children: [
+          _GoalCard(app),
+          const SizedBox(height: 24),
+          const Center(child: Text('Grafy se objeví po prvním tréninku.')),
+        ],
+      );
     }
     selected = ids.contains(selected) ? selected : ids.first;
     final availableTypes = app.sessions
@@ -105,6 +113,8 @@ class _ProgressPageState extends State<ProgressPage> {
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
+        _GoalCard(app),
+        const SizedBox(height: 16),
         DropdownButtonFormField<String>(
           initialValue: selected,
           decoration: const InputDecoration(labelText: 'Cvik'),
@@ -215,6 +225,33 @@ class _ProgressPageState extends State<ProgressPage> {
             Text('${entry.key}: ${entry.value}'),
         ],
       ],
+    );
+  }
+}
+
+class _GoalCard extends StatelessWidget {
+  final AppController app;
+  const _GoalCard(this.app);
+
+  @override
+  Widget build(BuildContext context) {
+    final summary = goalSummary(app.goal, app.sessions, DateTime.now());
+    final text = Theme.of(context).textTheme;
+    return Card(
+      margin: EdgeInsets.zero,
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(summary.title, style: text.labelLarge),
+            const SizedBox(height: 4),
+            Text(summary.value, style: text.headlineSmall),
+            const SizedBox(height: 4),
+            Text(summary.detail),
+          ],
+        ),
+      ),
     );
   }
 }

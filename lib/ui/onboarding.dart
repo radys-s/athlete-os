@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../app_controller.dart';
+import '../goals.dart';
 import 'common.dart';
 
 class OnboardingPage extends StatefulWidget {
@@ -99,16 +100,9 @@ class _OnboardingPageState extends State<OnboardingPage> {
                 DropdownButtonFormField<String>(
                   initialValue: goal,
                   decoration: const InputDecoration(labelText: 'Hlavní cíl'),
-                  items:
-                      const [
-                            'Síla a svaly',
-                            'Pravidelný pohyb',
-                            'Udržet kondici',
-                          ]
-                          .map(
-                            (v) => DropdownMenuItem(value: v, child: Text(v)),
-                          )
-                          .toList(),
+                  items: goals
+                      .map((v) => DropdownMenuItem(value: v, child: Text(v)))
+                      .toList(),
                   onChanged: (v) => setState(() => goal = v!),
                 ),
                 const SizedBox(height: 20),
